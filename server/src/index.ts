@@ -9,8 +9,6 @@ import { env } from './config/env';
 import { connectDB } from './config/db';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware';
-import { seedDatabase } from './scripts/seed';
-
 import { apiLimiter } from './middleware/rateLimiter';
 
 const app = express();
@@ -52,17 +50,6 @@ app.use(errorHandler);
 
 const startServer = async () => {
   await connectDB();
-  
-  // Auto-seeding disabled for custom user uploads
-  /*
-  if (env.NODE_ENV === 'development') {
-    try {
-      await seedDatabase();
-    } catch (err) {
-      console.warn('[Auto Seed Warning]', err);
-    }
-  }
-  */
 
   app.listen(env.PORT, () => {
     console.log(`==================================================`);

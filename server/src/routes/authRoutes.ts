@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AuthController } from '../controllers/authController';
 import { protect } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateMiddleware';
-import { authLimiter, otpLimiter } from '../middleware/rateLimiter';
+import { authLimiter } from '../middleware/rateLimiter';
 import { z } from 'zod';
 
 const router = Router();
@@ -29,10 +29,6 @@ const resetPasswordSchema = z.object({
     password: z.string().min(6, 'Password must be at least 6 characters'),
   }),
 });
-
-// Rate Limited Real Email OTP Routes
-router.post('/send-otp', otpLimiter, AuthController.sendOtp);
-router.post('/verify-otp', otpLimiter, AuthController.verifyOtp);
 
 // Rate Limited Auth Routes (Brute Force Protection)
 router.post('/register', authLimiter, validateRequest(registerSchema), AuthController.register);
