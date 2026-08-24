@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 
 const EMAIL_USER = process.env.EMAIL_USER || 'sarbjeetkumar76350@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || 'mgfwxeedaltmwpai';
@@ -7,7 +8,9 @@ export const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true, // SSL
-  family: 4, // 🌟 Force IPv4 resolution
+  lookup: (hostname: string, options: any, callback: any) => {
+    return dns.lookup(hostname, { family: 4 }, callback);
+  },
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
