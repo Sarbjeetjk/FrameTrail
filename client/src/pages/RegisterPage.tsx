@@ -29,12 +29,6 @@ export const RegisterPage: React.FC = () => {
     try {
       const res = await api.post('/auth/send-otp', { email: targetEmail.trim(), name, checkExisting: true });
       setOtpSuccessMessage(res.data?.message || 'OTP Sent Successfully! Please check your Gmail Inbox.');
-      
-      // If Cloud fallback active, auto-populate OTP for seamless UX
-      if (res.data?.data?.devOtp) {
-        setOtpCode(res.data.data.devOtp);
-      }
-      
       setIsVerifyingEmail(true);
     } catch (err: any) {
       console.error('[Send OTP Error]', err);

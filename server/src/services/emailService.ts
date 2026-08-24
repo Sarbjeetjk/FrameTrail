@@ -5,19 +5,31 @@ const EMAIL_USER = process.env.EMAIL_USER || 'sarbjeetkumar76350@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || 'mgfwxeedaltmwpai';
 
 export const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // SSL
-  lookup: (hostname: string, options: any, callback: any) => {
-    return dns.lookup(hostname, { family: 4 }, callback);
-  },
+  service: 'gmail',
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
   },
-  connectionTimeout: 6000,
-  greetingTimeout: 6000,
-  socketTimeout: 8000,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+} as any);
+
+export const fallbackTransporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  requireTLS: true,
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 } as any);
 
 export class EmailService {
@@ -66,11 +78,19 @@ export class EmailService {
       };
 
       console.log(`[Email Service] Attempting to send OTP email to ${toEmail}...`);
-      const info = await transporter.sendMail(mailOptions);
-      console.log(`[Email Service] Real OTP successfully sent to ${toEmail}! MessageId: ${info.messageId}`);
-      return true;
+      
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[Email Service Primary] Real OTP successfully sent to ${toEmail}! MessageId: ${info.messageId}`);
+        return true;
+      } catch (primaryErr: any) {
+        console.warn('[Email Primary Transporter Failed, Trying Fallback STARTTLS...]', primaryErr?.message || primaryErr);
+        const info2 = await fallbackTransporter.sendMail(mailOptions);
+        console.log(`[Email Service Fallback] Real OTP successfully sent to ${toEmail}! MessageId: ${info2.messageId}`);
+        return true;
+      }
     } catch (error: any) {
-      console.error('[Email Service Error]', error);
+      console.error('[Email Service All Transporters Error]', error);
       return false;
     }
   }

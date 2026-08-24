@@ -72,7 +72,7 @@ export const IntroLoader: React.FC = () => {
               className="w-full h-full object-cover rounded-[22px] shadow-lg transform group-hover:scale-105 transition-transform duration-500"
             />
             
-            <Sparkles className="w-5 h-5 text-amber-400 absolute top-2.5 right-2.5 animate-bounce drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" />
+            {/* <Sparkles className="w-5 h-5 text-amber-400 absolute top-2.5 right-2.5 animate-bounce drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" /> */}
           </div>
         </div>
 

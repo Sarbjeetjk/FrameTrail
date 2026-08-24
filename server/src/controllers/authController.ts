@@ -37,23 +37,14 @@ export class AuthController {
 
       // Always record OTP in memory first
       otpStore.set(cleanEmail, { otp: otpCode, expiresAt });
-      console.log(`[OTP Store] Security Code for ${cleanEmail}: ${otpCode}`);
-
-      // Attempt email dispatch
+      // Await real email dispatch to user's inbox
       const emailSent = await EmailService.sendOtpEmail(cleanEmail, otpCode, name || 'FrameTrail User');
 
       if (!emailSent) {
-        console.warn(`[Cloud SMTP Block] SMTP port blocked by host. Fallback OTP active for ${cleanEmail}: ${otpCode}`);
-        return sendResponse(
+        return sendError(
           res,
-          200,
-          true,
-          'OTP Generated! If email is delayed by cloud network, code is ready.',
-          {
-            email: cleanEmail,
-            expiresInSeconds: 600,
-            devOtp: otpCode,
-          }
+          500,
+          'Failed to dispatch OTP email. Please verify your email address or try again in a few moments.'
         );
       }
 
