@@ -15,7 +15,7 @@ export const transporter = nodemailer.createTransport({
   connectionTimeout: 20000,
   greetingTimeout: 20000,
   socketTimeout: 25000,
-});
+} as any);
 
 export class EmailService {
   /**
