@@ -21,13 +21,23 @@ app.use('/api', apiLimiter);
 // API Router
 app.use('/api', routes);
 
+// Root Welcome Route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: '🚀 FrameTrail API Server is Live & Healthy!',
+    health: '/health',
+    api: '/api',
+  });
+});
+
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     env: env.NODE_ENV,
-    storage: env.R2.BUCKET_NAME ? 'Cloudflare R2' : 'Simulated',
+    storage: 'Cloudinary Cloud Storage',
   });
 });
 
