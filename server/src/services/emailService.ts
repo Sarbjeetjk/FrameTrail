@@ -3,23 +3,14 @@ import dns from 'dns';
 
 const EMAIL_USER = process.env.EMAIL_USER || 'sarbjeetkumar76350@gmail.com';
 const EMAIL_PASS = process.env.EMAIL_PASS || 'mgfwxeedaltmwpai';
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 
 export const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-} as any);
-
-export const fallbackTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  requireTLS: true,
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465, // false for port 587 STARTTLS
+  requireTLS: SMTP_PORT === 587,
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
@@ -27,9 +18,9 @@ export const fallbackTransporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
 } as any);
 
 export class EmailService {
@@ -77,20 +68,12 @@ export class EmailService {
         html: htmlContent,
       };
 
-      console.log(`[Email Service] Attempting to send OTP email to ${toEmail}...`);
-      
-      try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`[Email Service Primary] Real OTP successfully sent to ${toEmail}! MessageId: ${info.messageId}`);
-        return true;
-      } catch (primaryErr: any) {
-        console.warn('[Email Primary Transporter Failed, Trying Fallback STARTTLS...]', primaryErr?.message || primaryErr);
-        const info2 = await fallbackTransporter.sendMail(mailOptions);
-        console.log(`[Email Service Fallback] Real OTP successfully sent to ${toEmail}! MessageId: ${info2.messageId}`);
-        return true;
-      }
+      console.log(`[Email Service] Attempting to send OTP email to ${toEmail} via ${SMTP_HOST}:${SMTP_PORT}...`);
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`[Email Service] Real OTP successfully sent to ${toEmail}! MessageId: ${info.messageId}`);
+      return true;
     } catch (error: any) {
-      console.error('[Email Service All Transporters Error]', error);
+      console.error('[Email Service Error]', error);
       return false;
     }
   }
