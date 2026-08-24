@@ -7,13 +7,14 @@ export const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true, // SSL
+  family: 4, // 🌟 Force IPv4 resolution to prevent Render/Cloud provider IPv6 connection timeouts
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 25000,
 });
 
 export class EmailService {
