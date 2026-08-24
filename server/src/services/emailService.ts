@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_HOST = process.env.SMTP_HOST ;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 
 export const transporter = nodemailer.createTransport({
