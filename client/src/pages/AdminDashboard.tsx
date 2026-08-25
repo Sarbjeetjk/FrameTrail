@@ -410,7 +410,26 @@ export const AdminDashboard: React.FC = () => {
   const movieCount = movieItems.length;
   const unreadMessagesCount = useMemo(() => contactMessages.filter((m) => !m.read).length, [contactMessages]);
 
-  if (authLoading || loading) {
+  if (authLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center space-y-6 animate-in fade-in duration-300">
+        <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+          <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-white tracking-tight">Verifying Admin Access...</h2>
+          <p className="text-xs text-slate-400 font-medium">Checking authorization credentials with cloud server</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/admin-login" replace />;
+  }
+
+  if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 text-center space-y-6 animate-in fade-in duration-300">
         <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
@@ -436,10 +455,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
     );
-  }
-
-  if (!isAdmin) {
-    return <Navigate to="/admin-login" replace />;
   }
 
   if (!isServerOnline || serverError) {
