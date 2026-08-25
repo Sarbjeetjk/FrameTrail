@@ -36,9 +36,9 @@ export const PhotosPage: React.FC = () => {
   // 3D Mouse Parallax Tilt State
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
-  // Scroll reveal visibility hooks
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [gridVisible, setGridVisible] = useState(false);
+  // Scroll reveal visibility hooks (Default to true so content is never hidden)
+  const [filterVisible, setFilterVisible] = useState(true);
+  const [gridVisible, setGridVisible] = useState(true);
   const filterRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 

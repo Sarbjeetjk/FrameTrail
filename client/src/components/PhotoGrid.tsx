@@ -27,15 +27,23 @@ interface PhotoGridProps {
 
 // Ultra-Smooth Silk Center-Compact to Spreading Card animation component
 const CenterSpreadCard: React.FC<{ index: number; children: React.ReactNode }> = ({ index, children }) => {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Instantly show cards on mobile screens to ensure zero rendering issues on touch devices
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsVisible(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsVisible(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
       },
-      { threshold: 0.08, rootMargin: '0px 0px -10px 0px' }
+      { threshold: 0.01, rootMargin: '100px 0px 100px 0px' }
     );
 
     if (cardRef.current) {
