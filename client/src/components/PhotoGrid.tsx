@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IMediaItem } from '../types';
 import { MediaCard } from './MediaCard';
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 import {
   X,
   Heart,
@@ -376,7 +377,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({ items, loading }) => {
                   </video>
                 ) : (
                   <img
-                    src={selectedPhoto.url}
+                    src={getOptimizedImageUrl(selectedPhoto.url, 2560)}
                     alt={selectedPhoto.title}
                     onMouseDown={handleMouseDown}
                     onMouseMove={handleMouseMove}

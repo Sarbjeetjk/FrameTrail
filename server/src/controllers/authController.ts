@@ -77,6 +77,33 @@ export class AuthController {
     }
   }
 
+  static async verifyPassword(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'Unauthorized');
+      }
+
+      const { password } = req.body;
+      if (!password) {
+        return sendError(res, 400, 'Password is required');
+      }
+
+      const user = await User.findById(req.user.id).select('+password');
+      if (!user) {
+        return sendError(res, 404, 'User not found');
+      }
+
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return sendError(res, 401, 'Incorrect admin password! Unhide access denied.');
+      }
+
+      return sendResponse(res, 200, true, 'Admin password verified successfully');
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Error verifying password');
+    }
+  }
+
   static async getMe(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {

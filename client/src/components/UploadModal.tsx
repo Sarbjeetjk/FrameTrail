@@ -17,6 +17,8 @@ interface BatchFileItem {
   file: File;
   title: string;
   description: string;
+  tags: string;
+  previewUrl: string;
   thumbnailFile?: File | null;
 }
 
@@ -92,18 +94,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
 
   if (!isOpen) return null;
 
-  // Handle Multiple File Selection
+  // Handle Multiple File Selection with instant Image Preview URL generation
   const handleMultipleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files);
       const newBatchItems: BatchFileItem[] = selectedFiles.map((file, index) => {
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
         const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        const isImage = file.type.startsWith('image/');
         return {
           id: `${file.name}_${Date.now()}_${index}`,
           file,
           title: formattedTitle,
           description: '',
+          tags: '',
+          previewUrl: isImage ? URL.createObjectURL(file) : '',
         };
       });
 
@@ -123,6 +128,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
     );
   };
 
+  const updateBatchItemTags = (id: string, newTags: string) => {
+    setFileList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, tags: newTags } : item))
+    );
+  };
+
   const updateBatchItemThumbnail = (id: string, thumbFile: File | null) => {
     setFileList((prev) =>
       prev.map((item) => (item.id === id ? { ...item, thumbnailFile: thumbFile } : item))
@@ -133,13 +144,73 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
     setFileList((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // Helper to convert file to Base64 Data URI for Cloudinary
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Smart Canvas Image Compression Helper (88% Quality Factor with 4K max resolution scaling)
+  const fileToBase64 = (file: File, quality = 0.88, maxDimension = 2560): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (err) => reject(err);
+      // If not an image file (e.g. video/mp4), return raw Data URI
+      if (!file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (err) => reject(err);
+        return;
+      }
+
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+
+        let { width, height } = img;
+
+        // Proportional 4K scaling if image dimensions exceed 2560px
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          // Fallback to raw FileReader if canvas context fails
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (err) => reject(err);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Export to WebP / JPEG with 0.88 (88%) quality factor
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/webp';
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+
+        const originalMb = (file.size / (1024 * 1024)).toFixed(2);
+        const approxCompressedMb = ((dataUrl.length * 0.75) / (1024 * 1024)).toFixed(2);
+        console.log(`[Smart Image Compression] ${file.name}: ${originalMb} MB -> ~${approxCompressedMb} MB (${Math.round(width)}x${Math.round(height)}) @ 88% Quality`);
+
+        resolve(dataUrl);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (readErr) => reject(readErr);
+      };
+
+      img.src = objectUrl;
     });
   };
 
@@ -225,6 +296,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
             throw new Error(`Cloudinary upload failed for file: ${item.file.name}`);
           }
 
+          // Compute item specific tags array or fallback to shared tag option
+          const itemTagArray = item.tags && item.tags.trim()
+            ? item.tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
+            : tagArray;
+
           // Save batch item to MongoDB Atlas
           await MediaService.createMedia({
             title: item.title || item.file.name,
@@ -233,7 +309,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
             url: finalMediaUrl,
             r2Key: mediaR2Key,
             category: finalCategory,
-            tags: tagArray,
+            tags: itemTagArray,
             metadata: {
               mimeType: item.file.type,
               fileSize: item.file.size,
@@ -456,15 +532,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                             key={item.id}
                             className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2.5 animate-in fade-in"
                           >
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-900 pb-2">
-                              <div className="flex items-center gap-2 truncate">
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
+                              <div className="flex items-center gap-3 truncate">
                                 <span className="w-5 h-5 rounded-full bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-[10px] flex items-center justify-center flex-shrink-0">
                                   {index + 1}
                                 </span>
-                                <span className="font-bold text-slate-200 truncate">{item.file.name}</span>
-                                <span className="text-[10px] text-slate-400 font-mono flex-shrink-0">
-                                  ({(item.file.size / (1024 * 1024)).toFixed(2)} MB)
-                                </span>
+
+                                {/* 🌟 Small Thumbnail Image / Video Preview */}
+                                {item.previewUrl ? (
+                                  <img
+                                    src={item.previewUrl}
+                                    alt={item.title}
+                                    className="w-12 h-12 object-cover rounded-xl border border-slate-700/80 shadow-md flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                                    <Video className="w-5 h-5" />
+                                  </div>
+                                )}
+
+                                <div className="truncate">
+                                  <div className="font-bold text-slate-200 truncate text-xs">{item.file.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    {(item.file.size / (1024 * 1024)).toFixed(2)} MB
+                                  </div>
+                                </div>
                               </div>
 
                               <button
@@ -476,7 +568,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                               </button>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <div>
                                 <label className="block text-[11px] font-bold text-slate-400 mb-1">
                                   Title for File #{index + 1}
@@ -502,6 +594,48 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                   onChange={(e) => updateBatchItemDescription(item.id, e.target.value)}
                                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
                                 />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-indigo-300 mb-1">
+                                  Tags (Specific for File)
+                                </label>
+                                <select
+                                  value={item.tags.startsWith('custom:') ? 'custom' : (item.tags || '4K Ultra HD')}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === 'custom') {
+                                      updateBatchItemTags(item.id, 'custom:');
+                                    } else {
+                                      updateBatchItemTags(item.id, val);
+                                    }
+                                  }}
+                                  className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
+                                >
+                                  <option value="4K Ultra HD">4K Ultra HD</option>
+                                  <option value="Solan">Solan</option>
+                                  <option value="SViet">SViet</option>
+                                  <option value="Campus">Campus</option>
+                                  <option value="College">College</option>
+                                  <option value="Cultural Heritage">Cultural Heritage</option>
+                                  <option value="Architecture & Landmarks">Architecture & Landmarks</option>
+                                  <option value="Nature & Landscapes">Nature & Landscapes</option>
+                                  <option value="Street Photography">Street Photography</option>
+                                  <option value="Portraits & Fine Art">Portraits & Fine Art</option>
+                                  <option value="Night & Neon">Night & Neon</option>
+                                  <option value="custom">Other (Type Custom Tags)...</option>
+                                </select>
+
+                                {item.tags.startsWith('custom:') && (
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Enter custom tags (e.g. Solan, 4K)..."
+                                    value={item.tags.replace('custom:', '')}
+                                    onChange={(e) => updateBatchItemTags(item.id, `custom:${e.target.value}`)}
+                                    className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
+                                  />
+                                )}
                               </div>
                             </div>
 
@@ -608,67 +742,33 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                 </div>
               )}
 
-              {/* Shared Category & Tag Metadata Controls */}
-              <div className="pt-1 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Category Dropdown */}
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">Category / Location</label>
-                    <select
-                      value={categorySelect}
-                      onChange={(e) => setCategorySelect(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
-                    >
-                      {categoryOptions.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                      <option value="Other">Other (Specify Custom Category)...</option>
-                    </select>
+              {/* Shared Category Metadata Controls */}
+              <div className="pt-1">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Category / Location</label>
+                  <select
+                    value={categorySelect}
+                    onChange={(e) => setCategorySelect(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
+                  >
+                    {categoryOptions.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="Other">Other (Specify Custom Category)...</option>
+                  </select>
 
-                    {categorySelect === 'Other' && (
-                      <input
-                        type="text"
-                        required
-                        placeholder="Enter custom category..."
-                        value={customCategory}
-                        onChange={(e) => setCustomCategory(e.target.value)}
-                        className="w-full mt-2 bg-slate-950 border border-indigo-500/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
-                      />
-                    )}
-                  </div>
-
-                  {/* Tag Dropdown */}
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1">Tag Option</label>
-                    <select
-                      value={tagSelect}
-                      onChange={(e) => setTagSelect(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
-                    >
-                      <option value="4K Ultra HD">4K Ultra HD</option>
-                      <option value="Live Stream">Live Stream</option>
-                      <option value="Cultural Heritage">Cultural Heritage</option>
-                      <option value="Architecture & Landmarks">Architecture & Landmarks</option>
-                      <option value="Nature & Landscapes">Nature & Landscapes</option>
-                      <option value="Street Photography">Street Photography</option>
-                      <option value="Portraits & Fine Art">Portraits & Fine Art</option>
-                      <option value="Night & Neon">Night & Neon</option>
-                      <option value="Other">Other (Specify Custom Tags)...</option>
-                    </select>
-
-                    {tagSelect === 'Other' && (
-                      <input
-                        type="text"
-                        required
-                        placeholder="Enter custom tags (comma separated)..."
-                        value={customTag}
-                        onChange={(e) => setCustomTag(e.target.value)}
-                        className="w-full mt-2 bg-slate-950 border border-indigo-500/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
-                      />
-                    )}
-                  </div>
+                  {categorySelect === 'Other' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter custom category..."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="w-full mt-2 bg-slate-950 border border-indigo-500/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
+                    />
+                  )}
                 </div>
               </div>
 

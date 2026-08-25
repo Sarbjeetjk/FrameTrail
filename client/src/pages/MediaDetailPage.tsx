@@ -4,6 +4,7 @@ import { MediaService } from '../services/mediaService';
 import { IMediaItem } from '../types';
 import { useMedia } from '../hooks/useMedia';
 import { ArrowLeft, Eye, Heart, Download, HardDrive, Tag } from 'lucide-react';
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 export const MediaDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -62,7 +63,7 @@ export const MediaDetailPage: React.FC = () => {
         {/* Media Container */}
         <div className="lg:col-span-2 bg-slate-950 flex items-center justify-center p-6 min-h-[400px]">
           {item.type === 'photo' ? (
-            <img src={item.url} alt={item.title} className="max-h-[70vh] w-auto object-contain rounded-2xl shadow-2xl" />
+            <img src={getOptimizedImageUrl(item.url, 2560)} alt={item.title} className="max-h-[70vh] w-auto object-contain rounded-2xl shadow-2xl" />
           ) : (
             <video src={item.url} controls autoPlay className="w-full max-h-[70vh] rounded-2xl">
               Your browser does not support HTML5 video.

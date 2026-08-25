@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   MessageSquare,
+  User,
 } from 'lucide-react';
 import { UploadModal } from './UploadModal';
 
@@ -95,42 +96,6 @@ export const Navbar: React.FC = () => {
 
           {/* Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 font-medium text-sm">
-            <Link
-              to="/photos"
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
-                isActive('/photos')
-                  ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              }`}
-            >
-              <Camera className="w-4 h-4 text-indigo-600" />
-              <span>Photos (500+)</span>
-            </Link>
-
-            <Link
-              to="/videos"
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
-                isActive('/videos')
-                  ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              }`}
-            >
-              <Video className="w-4 h-4 text-violet-600" />
-              <span>Videos</span>
-            </Link>
-
-            <Link
-              to="/movies"
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
-                isActive('/movies')
-                  ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              }`}
-            >
-              <Film className="w-4 h-4 text-amber-500" />
-              <span>Movies</span>
-            </Link>
-
             {!isAdmin && (
               <Link
                 to="/contact"
@@ -237,30 +202,6 @@ export const Navbar: React.FC = () => {
             </form>
 
             <nav className="flex flex-col space-y-1 pt-2">
-              <Link
-                to="/photos"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
-              >
-                <Camera className="w-4 h-4 text-indigo-600" />
-                <span>Photo Gallery (500+)</span>
-              </Link>
-              <Link
-                to="/videos"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
-              >
-                <Video className="w-4 h-4 text-violet-600" />
-                <span>Video Vault</span>
-              </Link>
-              <Link
-                to="/movies"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-600"
-              >
-                <Film className="w-4 h-4 text-amber-500" />
-                <span>Movies Showcase</span>
-              </Link>
               {!isAdmin && (
                 <Link
                   to="/contact"
@@ -286,17 +227,27 @@ export const Navbar: React.FC = () => {
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
               {isAuthenticated ? (
                 <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
+                  <Link
+                    to="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2.5 p-1 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    title="Open Profile Settings"
+                  >
                     <img
                       src={user?.avatar}
                       alt={user?.name}
-                      className="w-8 h-8 rounded-full border border-indigo-300"
+                      className="w-9 h-9 rounded-full border border-indigo-400 object-cover"
                     />
                     <div>
-                      <div className="text-sm font-semibold text-slate-800">{user?.name}</div>
-                      <div className="text-xs text-indigo-600 capitalize font-medium">{user?.role}</div>
+                      <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
+                        <span>{user?.name}</span>
+                        <User className="w-3 h-3 text-indigo-600" />
+                      </div>
+                      <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">
+                        Edit Profile ({user?.role})
+                      </div>
                     </div>
-                  </div>
+                  </Link>
                   <button
                     onClick={() => {
                       logout();

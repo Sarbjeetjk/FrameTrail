@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMedia } from '../hooks/useMedia';
 import { MediaService } from '../services/mediaService';
-import { Filter, SlidersHorizontal, Layers, Camera, Video, Film } from 'lucide-react';
+import { Filter, SlidersHorizontal, Layers, ShieldCheck } from 'lucide-react';
 import { MediaType } from '../types';
 
 export const FilterBar: React.FC = () => {
@@ -96,36 +97,36 @@ export const FilterBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Controls: Type Filter & Sort By Dropdowns */}
-      <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600 w-full md:w-auto justify-end flex-shrink-0">
+      {/* Right Controls: Ultra-Compact Type Filter & Sort By Pills (No Scrolling, Fits 1 Single Row) */}
+      <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs font-semibold text-slate-600 shrink-0">
         
-        {/* Media Type Filter (All / Photo / Video / Movie) */}
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-          <Layers className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="text-slate-500 font-bold">Type:</span>
+        {/* Media Type Filter Pill */}
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
+          <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600 shrink-0" />
+          <span className="text-slate-500 font-bold text-[10px] sm:text-xs">Type:</span>
           <select
             value={activeType}
             onChange={handleTypeChange}
-            className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border-none p-0 pr-1"
+            className="bg-transparent text-[10px] sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border-none p-0"
           >
-            <option value="all">All Media</option>
-            <option value="photo">📷 Photos Only</option>
-            <option value="video">🎥 Short Videos</option>
-            <option value="movie">🍿 Movies / Streams</option>
+            <option value="all">All</option>
+            <option value="photo">📷 Photos</option>
+            <option value="video">🎥 Videos</option>
+            <option value="movie">🍿 Movies</option>
           </select>
         </div>
 
-        {/* Sort By Dropdown */}
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-          <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="text-slate-500 font-bold">Sort By:</span>
+        {/* Sort By Dropdown Pill */}
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
+          <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600 shrink-0" />
+          <span className="text-slate-500 font-bold text-[10px] sm:text-xs">Sort:</span>
           <select
             value={sortBy === 'oldest' ? 'oldest' : 'latest'}
             onChange={handleSortChange}
-            className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border-none p-0 pr-1"
+            className="bg-transparent text-[10px] sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border-none p-0"
           >
-            <option value="latest">Latest Additions</option>
-            <option value="oldest">Oldest Additions</option>
+            <option value="latest">Latest</option>
+            <option value="oldest">Oldest</option>
           </select>
         </div>
 

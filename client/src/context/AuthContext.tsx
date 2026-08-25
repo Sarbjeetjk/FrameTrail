@@ -114,14 +114,52 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    const wasAdmin = user?.role === 'admin' || window.location.pathname.startsWith('/admin');
     setUser(null);
     setToken(null);
     localStorage.removeItem('frametrail_user');
     localStorage.removeItem('frametrail_token');
+
+    if (wasAdmin) {
+      window.location.href = '/admin-login';
+    } else {
+      window.location.href = '/login';
+    }
   };
 
   const isAdmin = Boolean(isServerOnline && user && user.role === 'admin');
   const isAuthenticated = Boolean(isServerOnline && user && token);
+
+  // 10-Minute Inactivity Auto-Logout Timer for Admin Security
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+
+    let inactivityTimer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        alert('🔒 Session Expired: You have been automatically logged out after 10 minutes of inactivity for security.');
+        logout();
+      }, 10 * 60 * 1000); // 10 minutes (600,000 ms)
+    };
+
+    // Initial setup on mount
+    resetTimer();
+
+    // Listen for user interaction events across the page
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, resetTimer, { passive: true });
+    });
+
+    return () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider

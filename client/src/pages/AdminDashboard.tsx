@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { MediaService } from '../services/mediaService';
 import api from '../services/api';
@@ -23,6 +23,9 @@ import {
   Search,
   Filter,
   X,
+  Loader2,
+  AlertCircle,
+  User,
 } from 'lucide-react';
 
 import { useMedia } from '../hooks/useMedia';
@@ -32,6 +35,8 @@ export const AdminDashboard: React.FC = () => {
   const { fetchMedia } = useMedia();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [actionLoadingText, setActionLoadingText] = useState<string>('Processing backend action...');
   const [serverError, setServerError] = useState<boolean>(false);
   const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
   const [adminMediaList, setAdminMediaList] = useState<IMediaItem[]>([]);
@@ -43,6 +48,7 @@ export const AdminDashboard: React.FC = () => {
   // Search & Filter State for Admin Panel Main Table
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [adminTypeFilter, setAdminTypeFilter] = useState<MediaType | 'all'>('all');
 
   // Specific Type & Search Filter State for Hidden Vault
   const [hiddenTypeFilter, setHiddenTypeFilter] = useState<MediaType | 'all'>('all');
@@ -113,6 +119,8 @@ export const AdminDashboard: React.FC = () => {
 
   // Soft Delete: Move item to Trash Bin (marks isDeleted: true in MongoDB Atlas and hides from public gallery)
   const handleSoftDelete = async (item: IMediaItem) => {
+    setActionLoadingId(item._id);
+    setActionLoadingText(`Trashing "${item.title}"...`);
     try {
       await MediaService.deleteMedia(item._id);
       const updatedTrash = [item, ...trashedMediaList.filter((t) => t._id !== item._id)];
@@ -125,11 +133,15 @@ export const AdminDashboard: React.FC = () => {
       fetchMedia();
     } catch (err) {
       console.error('[Soft Delete Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   // Restore: Restore item from Trash Bin back to active gallery in MongoDB Atlas
   const handleRestore = async (item: IMediaItem) => {
+    setActionLoadingId(item._id);
+    setActionLoadingText(`Restoring "${item.title}"...`);
     try {
       await MediaService.restoreMedia(item._id);
       const updatedTrash = trashedMediaList.filter((t) => t._id !== item._id);
@@ -139,15 +151,19 @@ export const AdminDashboard: React.FC = () => {
 
       setNotice(`"${item.title}" restored successfully to public gallery.`);
       setTimeout(() => setNotice(null), 4000);
-      loadAdminData();
+      await loadAdminData();
       fetchMedia();
     } catch (err) {
       console.error('[Restore Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   // Permanent Delete: Purge permanently from MongoDB Atlas & R2 Storage
   const handlePermanentDelete = async (id: string) => {
+    setActionLoadingId(id);
+    setActionLoadingText('Permanently purging asset from cloud database...');
     try {
       await MediaService.purgeMedia(id);
       const updatedTrash = trashedMediaList.filter((t) => t._id !== id);
@@ -156,15 +172,24 @@ export const AdminDashboard: React.FC = () => {
 
       setNotice(`Asset permanently purged from MongoDB Atlas database & R2 storage.`);
       setTimeout(() => setNotice(null), 4000);
-      loadAdminData();
+      await loadAdminData();
       fetchMedia();
     } catch (err) {
       console.error('[Permanent Purge Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
-  // Toggle Privacy: Hide or Unhide individual media asset with instant 0ms local state update
-  const handleToggleHideItem = async (item: IMediaItem) => {
+  // Admin Password Protection for Unhiding items/categories
+  const [unhideTarget, setUnhideTarget] = useState<{ type: 'item' | 'category'; item?: IMediaItem; categoryName?: string } | null>(null);
+  const [unhidePassword, setUnhidePassword] = useState('');
+  const [unhideError, setUnhideError] = useState<string | null>(null);
+  const [verifyingUnhide, setVerifyingUnhide] = useState(false);
+
+  const executeToggleHideItem = async (item: IMediaItem) => {
+    setActionLoadingId(item._id);
+    setActionLoadingText(`Updating privacy for "${item.title}"...`);
     try {
       const res = await MediaService.toggleHideItem(item._id);
       if (res.success && res.data) {
@@ -180,40 +205,109 @@ export const AdminDashboard: React.FC = () => {
           setHiddenMediaList((prev) => prev.filter((i) => i._id !== item._id));
         }
 
-        loadAdminData();
+        await loadAdminData();
         fetchMedia();
       }
     } catch (err) {
       console.error('[Toggle Hide Item Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
-  // Toggle Category Privacy: Hide or Unhide entire Category & Category name chip
-  const handleToggleHideCategory = async (catName: string) => {
+  // Toggle Privacy: Hide (1-click instant) or Unhide (Admin password required)
+  const handleToggleHideItem = async (item: IMediaItem) => {
+    if (item.isHidden) {
+      // Unhiding requires Admin Password verification
+      setUnhideTarget({ type: 'item', item });
+      setUnhidePassword('');
+      setUnhideError(null);
+    } else {
+      // Hiding is 1-click instant!
+      executeToggleHideItem(item);
+    }
+  };
+
+  const executeToggleHideCategory = async (catName: string) => {
+    setActionLoadingId(catName);
+    setActionLoadingText(`Updating category privacy for "${catName}"...`);
     try {
       const res = await MediaService.toggleHideCategory(catName);
       if (res.success) {
         setNotice(res.message || 'Updated category privacy status');
         setTimeout(() => setNotice(null), 4000);
-        loadAdminData();
+        await loadAdminData();
         fetchMedia();
       }
     } catch (err) {
       console.error('[Toggle Hide Category Error]', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Toggle Category Privacy: Hide (1-click instant) or Unhide (Admin password required)
+  const handleToggleHideCategory = async (catName: string) => {
+    const isCurrentlyHidden = hiddenCategoriesList.includes(catName);
+    if (isCurrentlyHidden) {
+      // Unhiding requires Admin Password verification
+      setUnhideTarget({ type: 'category', categoryName: catName });
+      setUnhidePassword('');
+      setUnhideError(null);
+    } else {
+      // Hiding is 1-click instant!
+      executeToggleHideCategory(catName);
+    }
+  };
+
+  const handleConfirmUnhideWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unhidePassword.trim() || !unhideTarget) return;
+
+    setVerifyingUnhide(true);
+    setUnhideError(null);
+
+    try {
+      const activeToken = localStorage.getItem('frametrail_token') || localStorage.getItem('token');
+      const res = await api.post(
+        '/auth/verify-password',
+        { password: unhidePassword.trim() },
+        { headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {} }
+      );
+      if (res.data && res.data.success) {
+        // Password verified! Execute actual unhide action
+        if (unhideTarget.type === 'item' && unhideTarget.item) {
+          await executeToggleHideItem(unhideTarget.item);
+        } else if (unhideTarget.type === 'category' && unhideTarget.categoryName) {
+          await executeToggleHideCategory(unhideTarget.categoryName);
+        }
+        setUnhideTarget(null);
+        setUnhidePassword('');
+      }
+    } catch (err: any) {
+      setUnhideError(err.response?.data?.message || 'Incorrect Admin Password! Access Denied.');
+    } finally {
+      setVerifyingUnhide(false);
     }
   };
 
   // Contact Messages Actions in MongoDB Atlas
   const handleMarkAsRead = async (msgId: string) => {
+    setActionLoadingId(msgId);
+    setActionLoadingText('Updating inquiry message status...');
     try {
       await api.patch(`/contact/${msgId}/read`);
       setContactMessages((prev) => prev.map((m) => (m.id === msgId || m._id === msgId ? { ...m, read: true } : m)));
     } catch (err) {
       console.error('[Mark Read Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleDeleteMessage = async (msgId: string) => {
+    setActionLoadingId(msgId);
+    setActionLoadingText('Deleting inquiry message...');
     try {
       await api.delete(`/contact/${msgId}`);
       setContactMessages((prev) => prev.filter((m) => m.id !== msgId && m._id !== msgId));
@@ -221,6 +315,8 @@ export const AdminDashboard: React.FC = () => {
       setTimeout(() => setNotice(null), 4000);
     } catch (err) {
       console.error('[Delete Message Error]', err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -232,11 +328,12 @@ export const AdminDashboard: React.FC = () => {
 
   const displayedItems = useMemo(() => {
     if (activeTab === 'trash') return trashedMediaList;
-    if (activeTab === 'photo') return photoItems;
-    if (activeTab === 'video') return videoItems;
-    if (activeTab === 'movie') return movieItems;
-    return visibleAdminList;
-  }, [activeTab, visibleAdminList, trashedMediaList, photoItems, videoItems, movieItems]);
+    let list = visibleAdminList;
+    if (adminTypeFilter !== 'all') {
+      list = list.filter((i) => i.type === adminTypeFilter);
+    }
+    return list;
+  }, [activeTab, visibleAdminList, trashedMediaList, adminTypeFilter]);
 
   // Dynamically extract unique categories present specifically in the current active tab
   const availableCategories = useMemo(() => {
@@ -313,10 +410,30 @@ export const AdminDashboard: React.FC = () => {
   const movieCount = movieItems.length;
   const unreadMessagesCount = useMemo(() => contactMessages.filter((m) => !m.read).length, [contactMessages]);
 
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-300 font-medium">
-        <p>Verifying server connection and admin authorization...</p>
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center space-y-6 animate-in fade-in duration-300">
+        <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+          <Loader2 className="w-10 h-10 text-indigo-400 animate-spin" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-white tracking-tight">Loading Admin Dashboard...</h2>
+          <p className="text-xs text-slate-400 font-medium">Fetching real-time metrics, media assets, & inquiries from cloud database</p>
+        </div>
+
+        {/* Animated Skeleton Cards Preview */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto pt-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-24 rounded-3xl bg-slate-900 border border-slate-800 p-4 animate-pulse flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800"></div>
+              <div className="space-y-2 flex-1">
+                <div className="h-3 bg-slate-800 rounded-full w-3/4"></div>
+                <div className="h-5 bg-slate-800 rounded-full w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -351,7 +468,14 @@ export const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 relative">
+      {/* Floating Active Backend Action Loading Status Indicator */}
+      {actionLoadingId && (
+        <div className="fixed top-20 right-6 z-50 bg-indigo-950/95 border border-indigo-500/50 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3.5 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 text-xs font-extrabold">
+          <Loader2 className="w-4 h-4 text-cyan-400 animate-spin flex-shrink-0" />
+          <span>{actionLoadingText}</span>
+        </div>
+      )}
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -388,9 +512,18 @@ export const AdminDashboard: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
+          <Link
+            to="/profile"
+            className="p-2.5 sm:px-4 sm:py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 transition-all shadow-sm font-extrabold text-xs flex items-center gap-2"
+            title="Edit Admin Profile & Settings"
+          >
+            <User className="w-4 h-4 text-indigo-400" />
+            <span className="hidden sm:inline">Profile Settings</span>
+          </Link>
+
           <button
             onClick={() => setUploadModalOpen(true)}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/25 hover:opacity-95 transition-all hover:scale-105"
+            className="px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/25 hover:opacity-95 transition-all hover:scale-105"
           >
             <UploadCloud className="w-4.5 h-4.5" />
             <span>Upload Media Asset</span>
@@ -482,7 +615,7 @@ export const AdminDashboard: React.FC = () => {
             </p>
           </div>
 
-          {/* Filter Tabs (All / Photos / Videos / Movies / Trash Bin / Contact Messages) */}
+          {/* Streamlined Filter Tabs (All Assets / Contact Messages / Trash Bin) */}
           <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab('all')}
@@ -494,42 +627,6 @@ export const AdminDashboard: React.FC = () => {
             >
               <Layers className="w-3.5 h-3.5" />
               <span>All Assets ({adminMediaList.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('photo')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 ${
-                activeTab === 'photo'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 border border-indigo-500'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Photos ({photoCount})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('video')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 ${
-                activeTab === 'video'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 border border-indigo-500'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Video className="w-3.5 h-3.5 text-violet-400" />
-              <span>Videos ({videoCount})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('movie')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex-shrink-0 ${
-                activeTab === 'movie'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 border border-indigo-500'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Film className="w-3.5 h-3.5 text-amber-400" />
-              <span>Movies ({movieCount})</span>
             </button>
 
             {/* Contact Messages Inbox Tab */}
@@ -578,7 +675,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Search & Contextual Category Filter Bar */}
+        {/* Live Search & Contextual Category / Type Filter Bar */}
         {activeTab !== 'messages' && (
           <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-xl">
             {/* Live Search Input Box */}
@@ -601,23 +698,31 @@ export const AdminDashboard: React.FC = () => {
               )}
             </div>
 
+            {/* 🌟 Media Type Filter Dropdown Pill (All Media / Photos Only / Short Videos / Movies) */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Layers className="w-4 h-4 text-indigo-400 hidden sm:block flex-shrink-0" />
+              <select
+                value={adminTypeFilter}
+                onChange={(e) => setAdminTypeFilter(e.target.value as MediaType | 'all')}
+                className="w-full sm:w-48 bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-cyan-300 font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="all">Type: All Media</option>
+                <option value="photo">📷 Type: Photos Only</option>
+                <option value="video">🎥 Type: Short Videos</option>
+                <option value="movie">🍿 Type: Movies / Streams</option>
+              </select>
+            </div>
+
             {/* Dynamic Type-Specific Category Dropdown Filter */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Filter className="w-4 h-4 text-indigo-400 hidden sm:block flex-shrink-0" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full sm:w-56 bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-indigo-300 font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                className="w-full sm:w-52 bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-indigo-300 font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
               >
                 <option value="all">
-                  {activeTab === 'photo'
-                    ? 'All Photo Categories'
-                    : activeTab === 'video'
-                    ? 'All Video Categories'
-                    : activeTab === 'movie'
-                    ? 'All Movie Categories'
-                    : 'All Asset Categories'}{' '}
-                  ({availableCategories.length})
+                  All Asset Categories ({availableCategories.length})
                 </option>
                 {availableCategories.map((cat) => (
                   <option key={cat} value={cat}>
@@ -871,6 +976,86 @@ export const AdminDashboard: React.FC = () => {
           />
         )}
       </div>
+
+      {/* 🔐 Admin Password Required Modal for Unhiding Data */}
+      {unhideTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-white text-base">Admin Password Required</h3>
+                  <p className="text-[11px] text-slate-400">Enter Admin Password to unhide asset & publish to gallery</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUnhideTarget(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {unhideError && (
+              <div className="p-3 bg-rose-950/80 border border-rose-500/40 rounded-xl text-rose-200 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>{unhideError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleConfirmUnhideWithPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
+                  <span>Enter Password for:</span>
+                  <span className="text-amber-300 truncate max-w-[200px]">
+                    {unhideTarget.type === 'item' ? unhideTarget.item?.title : unhideTarget.categoryName}
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  placeholder="Enter Admin Password..."
+                  value={unhidePassword}
+                  onChange={(e) => setUnhidePassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-semibold"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUnhideTarget(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={verifyingUnhide || !unhidePassword.trim()}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                >
+                  {verifyingUnhide ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Verify & Unhide</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Upload Modal */}
       <UploadModal isOpen={uploadModalOpen} onClose={() => setUploadModalOpen(false)} onSuccess={loadAdminData} />

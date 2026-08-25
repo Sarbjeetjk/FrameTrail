@@ -34,29 +34,6 @@ export const Footer: React.FC = () => {
 
           {/* Navigation Pill Chips */}
           <div className="flex items-center gap-2.5 flex-wrap justify-center text-xs font-bold">
-            <Link
-              to="/photos"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-indigo-600/40 text-slate-200 hover:text-white border border-slate-700/80 hover:border-indigo-500/50 transition-all hover:scale-105 shadow-sm text-xs"
-            >
-              <Camera className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Photos (500+)</span>
-            </Link>
-
-            <Link
-              to="/videos"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-indigo-600/40 text-slate-200 hover:text-white border border-slate-700/80 hover:border-indigo-500/50 transition-all hover:scale-105 shadow-sm text-xs"
-            >
-              <Video className="w-3.5 h-3.5 text-violet-400" />
-              <span>Videos</span>
-            </Link>
-
-            <Link
-              to="/movies"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900/80 hover:bg-indigo-600/40 text-slate-200 hover:text-white border border-slate-700/80 hover:border-indigo-500/50 transition-all hover:scale-105 shadow-sm text-xs"
-            >
-              <Film className="w-3.5 h-3.5 text-amber-400" />
-              <span>Movies</span>
-            </Link>
 
             <Link
               to="/contact"

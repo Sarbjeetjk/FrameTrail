@@ -2,6 +2,7 @@ import React from 'react';
 import { IMediaItem } from '../types';
 import { Heart, Maximize2, Play, Film, Video } from 'lucide-react';
 import { useMedia } from '../hooks/useMedia';
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 interface MediaCardProps {
   item: IMediaItem;
@@ -40,15 +41,16 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onSelect }) => {
     item.url.includes('/video/');
 
   const getThumbnailUrl = () => {
-    if (item.metadata?.thumbnailUrl) return item.metadata.thumbnailUrl;
-    if (isYouTubeUrl(item.url)) {
+    let rawUrl = item.url;
+    if (item.metadata?.thumbnailUrl) {
+      rawUrl = item.metadata.thumbnailUrl;
+    } else if (isYouTubeUrl(item.url)) {
       const ytId = getYouTubeId(item.url);
       if (ytId) return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-    }
-    if (item.url.endsWith('.mp4') || item.url.includes('/video/')) {
+    } else if (item.url.endsWith('.mp4') || item.url.includes('/video/')) {
       return 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80';
     }
-    return item.url;
+    return getOptimizedImageUrl(rawUrl, 1200);
   };
 
   return (

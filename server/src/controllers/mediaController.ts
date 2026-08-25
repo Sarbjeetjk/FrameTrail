@@ -4,6 +4,10 @@ import { HiddenCategory } from '../models/HiddenCategory';
 import { sendResponse, sendError } from '../utils/response';
 import mongoose from 'mongoose';
 
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class MediaController {
   /**
    * Get paginated media items with advanced search & filters (hides deleted, hidden items & hidden categories)
@@ -38,7 +42,7 @@ export class MediaController {
       }
 
       if (category && category !== 'All') {
-        filter.category = new RegExp(`^${category}$`, 'i');
+        filter.category = new RegExp(`^${escapeRegex(category.trim())}$`, 'i');
       }
 
       if (tag) {
@@ -50,11 +54,12 @@ export class MediaController {
       }
 
       if (search) {
+        const safeSearch = escapeRegex(search.trim());
         filter.$or = [
-          { title: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { category: { $regex: search, $options: 'i' } },
-          { tags: { $in: [new RegExp(search, 'i')] } },
+          { title: { $regex: safeSearch, $options: 'i' } },
+          { description: { $regex: safeSearch, $options: 'i' } },
+          { category: { $regex: safeSearch, $options: 'i' } },
+          { tags: { $in: [new RegExp(safeSearch, 'i')] } },
         ];
       }
 

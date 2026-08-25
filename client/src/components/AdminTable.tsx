@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { IMediaItem } from '../types';
 import { MediaService } from '../services/mediaService';
 import { useMedia } from '../hooks/useMedia';
-import { Trash2, Edit3, Eye, EyeOff, Heart, Camera, Video, Film, AlertTriangle, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Edit3, Eye, EyeOff, Heart, Camera, Video, Film, AlertTriangle, RotateCcw, ChevronLeft, ChevronRight, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 interface AdminTableProps {
   items: IMediaItem[];
@@ -32,14 +33,127 @@ export const AdminTable: React.FC<AdminTableProps> = ({
   const [editCustomCategory, setEditCustomCategory] = useState('');
   const [editType, setEditType] = useState<any>('photo');
 
+  // Multi-Select Checkbox State for Bulk Actions
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState<boolean>(false);
+
   // Fast Client-Side Table Pagination for 0ms Rendering Performance
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 20;
 
-  // Reset to page 1 when item list length or trash view changes
+  // Reset selection & page when items change
   React.useEffect(() => {
     setCurrentPage(1);
+    setSelectedIds([]);
   }, [items.length, isTrashView]);
+
+  const isAllSelected = items.length > 0 && items.every((i) => selectedIds.includes(i._id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map((i) => i._id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  // Bulk Action Execution Handlers
+  const handleBulkSoftDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to move ${selectedIds.length} selected assets to the Trash Bin?`)) return;
+    
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        const item = items.find((i) => i._id === id);
+        if (item && onSoftDelete) {
+          await onSoftDelete(item);
+        } else {
+          await MediaService.deleteMedia(id);
+        }
+      }
+      setSelectedIds([]);
+      onRefresh();
+      fetchMedia();
+    } catch (err) {
+      console.error('[Bulk Soft Delete Error]', err);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        const item = items.find((i) => i._id === id);
+        if (item && onRestore) {
+          await onRestore(item);
+        } else {
+          await MediaService.restoreMedia(id);
+        }
+      }
+      setSelectedIds([]);
+      onRefresh();
+      fetchMedia();
+    } catch (err) {
+      console.error('[Bulk Restore Error]', err);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkToggleHide = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        const item = items.find((i) => i._id === id);
+        if (item && onToggleHide) {
+          await onToggleHide(item);
+        } else {
+          await MediaService.toggleHideItem(id);
+        }
+      }
+      setSelectedIds([]);
+      onRefresh();
+      fetchMedia();
+    } catch (err) {
+      console.error('[Bulk Toggle Hide Error]', err);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkPurge = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`⚠️ CAUTION: Permanently delete ${selectedIds.length} assets from cloud database? This action CANNOT be undone!`)) return;
+    
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        if (onPermanentDelete) {
+          await onPermanentDelete(id);
+        } else {
+          await MediaService.purgeMedia(id);
+        }
+      }
+      setSelectedIds([]);
+      onRefresh();
+      fetchMedia();
+    } catch (err) {
+      console.error('[Bulk Purge Error]', err);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
 
   const totalPages = Math.ceil(items.length / pageSize) || 1;
   const paginatedItems = items.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -107,11 +221,85 @@ export const AdminTable: React.FC<AdminTableProps> = ({
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
+    <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0 relative">
+      
+      {/* 🌟 Bulk Action Toolbar for Multi-Select Checkboxes */}
+      {selectedIds.length > 0 && (
+        <div className="bg-indigo-950/95 border-b border-indigo-500/30 p-3.5 px-5 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-white animate-in fade-in backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <CheckSquare className="w-5 h-5 text-cyan-400" />
+            <span className="text-sm font-extrabold">{selectedIds.length} Assets Selected</span>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-slate-400 hover:text-white underline text-xs font-semibold ml-2"
+            >
+              Clear Selection
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isBulkProcessing ? (
+              <div className="flex items-center gap-2 text-indigo-300 font-bold px-3 py-1.5">
+                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                <span>Processing Multi-Select Request...</span>
+              </div>
+            ) : isTrashView ? (
+              <>
+                <button
+                  onClick={handleBulkRestore}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                  title="Restore selected assets to active gallery"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Restore Selected ({selectedIds.length})</span>
+                </button>
+                <button
+                  onClick={handleBulkPurge}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                  title="Permanently purge selected assets"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Purge Selected ({selectedIds.length})</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleBulkToggleHide}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                  title="Toggle privacy status for selected assets"
+                >
+                  <EyeOff className="w-4 h-4" />
+                  <span>Toggle Privacy ({selectedIds.length})</span>
+                </button>
+                <button
+                  onClick={handleBulkSoftDelete}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                  title="Move selected assets to trash bin"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Move Selected to Trash ({selectedIds.length})</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950 text-xs font-black text-indigo-300 uppercase tracking-wider">
+              {/* Checkbox Select All Column */}
+              <th className="py-4 px-4 w-12 text-center">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-slate-700 accent-indigo-600 cursor-pointer"
+                  title="Select All Assets"
+                />
+              </th>
               <th className="py-4 px-5">Asset Info</th>
               <th className="py-4 px-5">Type</th>
               <th className="py-4 px-5">Category / City</th>
@@ -120,12 +308,24 @@ export const AdminTable: React.FC<AdminTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/80 text-xs text-slate-200 font-medium">
-            {paginatedItems.map((item) => (
-              <tr key={item._id} className="hover:bg-slate-800/50 transition-colors">
-                {/* Asset info & preview */}
-                <td className="py-3.5 px-5 flex items-center gap-3 min-w-[240px]">
+            {paginatedItems.map((item) => {
+              const isSelected = selectedIds.includes(item._id);
+              return (
+                <tr key={item._id} className={`transition-colors ${isSelected ? 'bg-indigo-950/40' : 'hover:bg-slate-800/50'}`}>
+                  {/* Row Checkbox Selection */}
+                  <td className="py-3.5 px-4 w-12 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectOne(item._id)}
+                      className="w-4 h-4 rounded border-slate-700 accent-indigo-600 cursor-pointer"
+                    />
+                  </td>
+
+                  {/* Asset info & preview */}
+                  <td className="py-3.5 px-5 flex items-center gap-3 min-w-[240px]">
                   <img
-                    src={item.url}
+                    src={getOptimizedImageUrl(item.url, 300)}
                     alt={item.title}
                     className="w-11 h-11 rounded-xl object-cover bg-slate-950 border border-slate-700 flex-shrink-0"
                   />
@@ -256,7 +456,8 @@ export const AdminTable: React.FC<AdminTableProps> = ({
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>

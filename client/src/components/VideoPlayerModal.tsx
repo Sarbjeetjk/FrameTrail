@@ -34,6 +34,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     return url.includes('youtube.com') || url.includes('youtu.be');
   };
 
+  const isDriveUrl = (url: string) => {
+    return url.includes('drive.google.com');
+  };
+
   const getYouTubeEmbedUrl = (url: string) => {
     if (url.includes('youtu.be/')) {
       const id = url.split('youtu.be/')[1]?.split('?')[0];
@@ -46,12 +50,24 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     return url;
   };
 
+  const getDriveEmbedUrl = (url: string) => {
+    const match = url.match(/\/file\/d\/([^\/]+)/);
+    if (match && match[1]) {
+      return `https://drive.google.com/file/d/${match[1]}/preview`;
+    }
+    return url;
+  };
+
   const rawUrl = video.url || '';
   const isYouTube = isYouTubeUrl(rawUrl);
+  const isDrive = isDriveUrl(rawUrl);
 
   const getPlayableVideoUrl = () => {
     if (isYouTube) {
       return getYouTubeEmbedUrl(rawUrl);
+    }
+    if (isDrive) {
+      return getDriveEmbedUrl(rawUrl);
     }
 
     if (videoError || !rawUrl) {
@@ -73,29 +89,27 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     setCurrentStreamIndex((prev) => (prev + 1) % fallbackStreams.length);
   };
 
+  // Extract poster thumbnail URL safely for HTML5 video element
+  const getPosterUrl = () => {
+    if (video.metadata?.thumbnailUrl) {
+      return video.metadata.thumbnailUrl;
+    }
+    return 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1200&q=80';
+  };
+
   // 🌟 Synchronous 2-Stage Backdrop Click: 1st click pauses video, 2nd click closes modal
   const handleBackdropClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.video-modal-card')) {
       return;
     }
 
-    if (!hasPausedRef.current) {
-      if (videoRef.current) {
-        videoRef.current.pause();
-      }
+    if (videoRef.current && !videoRef.current.paused && !hasPausedRef.current) {
+      videoRef.current.pause();
       hasPausedRef.current = true;
-      return; // STOP ON 1ST CLICK! DO NOT CLOSE!
+      return;
     }
-    onClose();
-  };
 
-  const getPosterUrl = () => {
-    if (video.metadata?.thumbnailUrl) return video.metadata.thumbnailUrl;
-    const lower = (video.url || '').toLowerCase();
-    if (lower.includes('unsplash.com') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp')) {
-      return video.url;
-    }
-    return 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80';
+    onClose();
   };
 
   return (
@@ -137,7 +151,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
 
         {/* Video Player Container */}
         <div className="relative aspect-video w-full bg-black flex items-center justify-center">
-          {isYouTube ? (
+          {isYouTube || isDrive ? (
             <iframe
               src={playableUrl}
               title={video.title}

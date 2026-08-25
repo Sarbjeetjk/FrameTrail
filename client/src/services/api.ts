@@ -16,10 +16,9 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor to attach JWT token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('frametrail_token');
+    const token = localStorage.getItem('frametrail_token') || localStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,9 +32,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token if invalid or expired
-      localStorage.removeItem('frametrail_token');
-      localStorage.removeItem('frametrail_user');
+      // Do NOT clear token if error is just an incorrect password check in verify-password
+      const requestUrl = error.config?.url || '';
+      if (!requestUrl.includes('/auth/verify-password')) {
+        localStorage.removeItem('frametrail_token');
+        localStorage.removeItem('frametrail_user');
+      }
     }
 
     // Standardize user-friendly Server Error messages

@@ -145,38 +145,39 @@ export const PhotosPage: React.FC = () => {
               High-performance digital showcase offering instant photo search, ultra-crisp resolution, and curated photography collections.
             </p>
 
-            {/* 3. Interactive Glow Search Bar Bounce */}
-            <form onSubmit={handleHeroSearch} className="animate-search-bounce max-w-xl flex items-center gap-2 p-2 bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/40 rounded-2xl shadow-2xl shadow-indigo-500/20 focus-within:border-indigo-400 transition-all">
-              <div className="relative flex-1">
+            {/* 3. Interactive Compact Glow Search Bar */}
+            <form onSubmit={handleHeroSearch} className="animate-search-bounce max-w-xl flex items-center gap-1.5 p-1.5 sm:p-2 bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/40 rounded-2xl shadow-2xl shadow-indigo-500/20 focus-within:border-indigo-400 transition-all w-full">
+              <div className="relative flex-1 min-w-0">
                 <input
                   type="text"
                   placeholder="Search 500+ photos (Nature, Cyberpunk, 4K)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 text-sm text-white placeholder-slate-400 bg-transparent focus:outline-none font-medium"
+                  className="w-full pl-9 sm:pl-10 pr-2 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 bg-transparent focus:outline-none font-medium truncate"
                 />
-                <Search className="w-5 h-5 text-indigo-400 absolute left-3.5 top-3.5" />
+                <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400 absolute left-3 top-2.5 sm:top-3" />
               </div>
               <button
                 type="submit"
-                className="px-7 py-3.5 bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:opacity-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 hover:scale-105"
+                className="px-3.5 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:opacity-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+                title="Search Gallery"
               >
                 <span>Search</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </form>
 
             {/* 4. Quick Filter Tag Chips */}
-            <div className="animate-headline-slide flex items-center gap-2 flex-wrap pt-1 text-xs">
-              <span className="text-slate-400 font-semibold flex items-center gap-1">
-                <Flame className="w-3.5 h-3.5 text-amber-400" /> Trending:
+            <div className="animate-headline-slide flex items-center gap-1.5 sm:gap-2 flex-wrap pt-1 text-[10px] sm:text-xs">
+              <span className="text-slate-400 font-semibold flex items-center gap-1 text-[10px] sm:text-xs">
+                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" /> Trending:
               </span>
               {POPULAR_TAGS.map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() => handleQuickTagClick(tag)}
-                  className="px-3 py-1 rounded-lg bg-slate-900/80 hover:bg-indigo-600/40 border border-slate-700/80 hover:border-indigo-500/60 text-slate-300 hover:text-indigo-300 font-medium transition-all text-[11px] shadow-sm"
+                  className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-slate-900/80 hover:bg-indigo-600/40 border border-slate-700/80 hover:border-indigo-500/60 text-slate-300 hover:text-indigo-300 font-medium transition-all text-[9.5px] sm:text-[11px] shadow-sm"
                 >
                   #{tag}
                 </button>
@@ -236,44 +237,44 @@ export const PhotosPage: React.FC = () => {
         </div>
 
         {/* Bottom Feature Grid */}
-        <div className="relative z-10 pt-8 mt-6 border-t border-slate-800/90 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-center gap-3 p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-indigo-500/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/30">
-              <Camera className="w-5 h-5" />
+        <div className="relative z-10 pt-6 mt-6 border-t border-slate-800/90 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-indigo-500/40 transition-colors min-w-0 overflow-hidden">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/30 flex-shrink-0">
+              <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="text-base font-black text-white">520+ Photos</div>
-              <div className="text-[11px] font-medium text-slate-400">Indexed & Curated</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-cyan-500/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center font-bold border border-cyan-500/30">
-              <Zap className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-base font-black text-white">Instant Load</div>
-              <div className="text-[11px] font-medium text-slate-400">High Speed Gallery</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">520+ Photos</div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate leading-tight mt-0.5">Indexed & Curated</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-violet-500/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center font-bold border border-violet-500/30">
-              <HardDrive className="w-5 h-5" />
+          <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-cyan-500/40 transition-colors min-w-0 overflow-hidden">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center font-bold border border-cyan-500/30 flex-shrink-0">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="text-base font-black text-white">4K UHD</div>
-              <div className="text-[11px] font-medium text-slate-400">Resolution Standard</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">Instant Load</div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate leading-tight mt-0.5">High Speed Gallery</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-emerald-500/40 transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/30">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-violet-500/40 transition-colors min-w-0 overflow-hidden">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center font-bold border border-violet-500/30 flex-shrink-0">
+              <HardDrive className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="text-base font-black text-white">Curated Vault</div>
-              <div className="text-[11px] font-medium text-slate-400">Direct Asset Access</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">4K UHD</div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate leading-tight mt-0.5">Resolution Standard</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-emerald-500/40 transition-colors min-w-0 overflow-hidden">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/30 flex-shrink-0">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">Curated Vault</div>
+              <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate leading-tight mt-0.5">Direct Asset Access</div>
             </div>
           </div>
         </div>

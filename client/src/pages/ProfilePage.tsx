@@ -1,10 +1,20 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { User, Mail, ShieldCheck, CheckCircle2, Save, Key, AtSign, Camera, X, UploadCloud, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 
 export const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, updateProfile } = useAuth();
+
+  const handleCloseProfile = () => {
+    if (user?.role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/');
+    }
+  };
 
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -140,6 +150,16 @@ export const ProfilePage: React.FC = () => {
             User Profile & Account Settings
           </h1>
         </div>
+
+        {/* ❌ Close Button to exit Profile Card & Return */}
+        <button
+          onClick={handleCloseProfile}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-rose-500/50 text-slate-300 hover:text-rose-400 transition-all hover:scale-105 shadow-xl text-xs font-bold"
+          title="Close Profile & Return"
+        >
+          <X className="w-4 h-4 text-rose-400" />
+          <span>Close Profile</span>
+        </button>
       </div>
 
       {notice && (
@@ -202,9 +222,20 @@ export const ProfilePage: React.FC = () => {
 
         {/* Right Column: Edit Profile Form */}
         <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
-          <div>
-            <h2 className="text-xl font-bold text-white">Edit Profile Details</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Update your personal information, email address, and avatar image</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">Edit Profile Details</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Update your personal information, email address, and avatar image</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseProfile}
+              className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition-all flex items-center gap-1.5 text-xs font-bold shadow-md"
+              title="Close Profile & Return"
+            >
+              <X className="w-4 h-4 text-rose-400" />
+              <span>Close</span>
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5 text-xs font-medium">
