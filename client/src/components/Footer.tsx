@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Camera, Video, Film, Heart, Mail, Phone, MessageSquare, Github, Twitter, Instagram, ShieldCheck } from 'lucide-react';
+import { Logo3D } from './Logo3D';
 
 export const Footer: React.FC = () => {
   return (
@@ -19,16 +20,17 @@ export const Footer: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-indigo-950 border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/20 overflow-hidden flex-shrink-0">
               <img
-                src="/IMG_20240423_000718.png"
+                src="/img5.png"
                 alt="FrameTrail Logo"
                 className="w-full h-full object-cover object-center"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/IMG_20240423_000718.png'; }}
               />
             </div>
             <div>
               <span className="font-display font-black text-xl sm:text-2xl text-white tracking-tight">
                 Frame<span className="text-indigo-400">Trail</span>
               </span>
-              <p className="text-[10px] sm:text-xs text-slate-400 font-medium">Digital Media Vault & Gallery</p>
+              <p className="text-[10px] sm:text-xs text-slate-400 font-medium">Digital Media Vault &amp; Gallery</p>
             </div>
           </div>
 

@@ -20,7 +20,7 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <MediaProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <IntroLoader />
           <div className="flex flex-col min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
             <Navbar />

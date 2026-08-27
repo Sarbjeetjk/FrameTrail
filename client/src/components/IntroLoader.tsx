@@ -2,42 +2,52 @@ import React, { useState, useEffect } from 'react';
 import { Film, ShieldCheck } from 'lucide-react';
 
 export const IntroLoader: React.FC = () => {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => {
+    // Play intro loader ONLY ONCE per browser session at starting!
+    const hasBeenShown = sessionStorage.getItem('frametrail_intro_shown');
+    return !hasBeenShown;
+  });
   const [fadeOut, setFadeOut] = useState(false);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Smooth progress counter from 0% to 100% over ~3.0 seconds
+    if (!visible) return;
+
+    // Mark intro loader as shown in sessionStorage so it NEVER plays again on refreshes/navigations
+    sessionStorage.setItem('frametrail_intro_shown', 'true');
+
+    // Smooth progress counter from 0% to 100% over ~1.6 seconds
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           return 100;
         }
-        return prev + 2;
+        return prev + 5;
       });
-    }, 60);
+    }, 35);
 
-    // Trigger smooth fade-out transition at 3.2s
+    // Trigger smooth fade-out transition at 1.6s
     const fadeTimer = setTimeout(() => {
       setFadeOut(true);
-    }, 3200);
+    }, 1600);
 
-    // Completely unmount component at 3.8s to reveal Home Page automatically
+    // Completely unmount component at 1.9s to reveal main application
     const removeTimer = setTimeout(() => {
       setVisible(false);
-    }, 3800);
+    }, 1900);
 
     return () => {
       clearInterval(interval);
       clearTimeout(fadeTimer);
       clearTimeout(removeTimer);
     };
-  }, []);
+  }, [visible]);
 
   const handleDismiss = () => {
+    sessionStorage.setItem('frametrail_intro_shown', 'true');
     setFadeOut(true);
-    setTimeout(() => setVisible(false), 300);
+    setTimeout(() => setVisible(false), 200);
   };
 
   if (!visible) return null;
@@ -67,9 +77,10 @@ export const IntroLoader: React.FC = () => {
             
             {/* User Official Logo Image */}
             <img
-              src="/IMG_20240423_000718.png"
+              src="/img5.png"
               alt="FrameTrail Official Logo"
               className="w-full h-full object-cover rounded-[22px] shadow-lg transform group-hover:scale-105 transition-transform duration-500"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/IMG_20240423_000718.png'; }}
             />
           </div>
         </div>

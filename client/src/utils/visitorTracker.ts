@@ -1,3 +1,5 @@
+import api from '../services/api';
+
 /**
  * Visitor Telemetry Tracker
  * Records real-time visitor traffic (IP, location, device, page) to system activity logs.
@@ -17,9 +19,22 @@ export const recordVisitorHit = async (pageName: string) => {
     let coordinates = { lat: 28.6139, lng: 77.209 };
     let isp = 'Reliance Jio Infocomm Limited';
 
-    // Fetch real IP & location metadata from public Geo-IP API
+    // Fetch real IP & location metadata via backend proxy endpoint (Zero CORS errors)
     try {
-      const res = await fetch('https://ipapi.co/json/').then((r) => r.json());
+      const cached = sessionStorage.getItem('frametrail_geoip');
+      let res: any = null;
+      if (cached) {
+        try { res = JSON.parse(cached); } catch (e) {}
+      }
+
+      if (!res) {
+        const apiRes = await api.get('/auth/geoip').catch(() => null);
+        if (apiRes && apiRes.data && apiRes.data.data) {
+          res = apiRes.data.data;
+          sessionStorage.setItem('frametrail_geoip', JSON.stringify(res));
+        }
+      }
+
       if (res && res.ip) {
         ip = res.ip;
         const city = res.city || 'New Delhi';

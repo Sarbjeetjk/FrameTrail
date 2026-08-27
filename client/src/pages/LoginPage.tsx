@@ -32,6 +32,14 @@ export const LoginPage: React.FC = () => {
 
     try {
       await login(email, password);
+      // Block Admin accounts on standard login page
+      const savedUser = JSON.parse(localStorage.getItem('frametrail_user') || '{}');
+      if (savedUser.role === 'admin') {
+        localStorage.removeItem('frametrail_user');
+        localStorage.removeItem('frametrail_token');
+        setError('⛔ Access Denied: Administrator accounts cannot log in through the standard User Login page. Please log in via the Secure Admin Portal (/admin-login).');
+        return;
+      }
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');

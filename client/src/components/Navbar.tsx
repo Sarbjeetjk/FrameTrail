@@ -17,6 +17,7 @@ import {
   MessageSquare,
   User,
 } from 'lucide-react';
+import { Logo3D } from './Logo3D';
 import { UploadModal } from './UploadModal';
 
 export const Navbar: React.FC = () => {
@@ -77,9 +78,10 @@ export const Navbar: React.FC = () => {
             <Link to="/" className="flex items-center gap-3 group">
               <div className="w-10 h-10 rounded-2xl bg-indigo-50 border-2 border-indigo-200 shadow-md shadow-indigo-500/20 overflow-hidden group-hover:scale-105 transition-transform">
                 <img
-                  src="/IMG_20240423_000718.png"
+                  src="/img5.png"
                   alt="FrameTrail Logo"
                   className="w-full h-full object-cover object-center"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/IMG_20240423_000718.png'; }}
                 />
               </div>
               <span className="font-display font-black text-2xl text-slate-900 tracking-tight">

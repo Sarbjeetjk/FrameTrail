@@ -31,6 +31,20 @@ export const AdminLoginPage: React.FC = () => {
 
     try {
       await login(email, password);
+      // Check if logged in user is strictly an admin
+      const savedUser = JSON.parse(localStorage.getItem('frametrail_user') || '{}');
+      if (savedUser.role !== 'admin') {
+        localStorage.removeItem('frametrail_user');
+        localStorage.removeItem('frametrail_token');
+        setError('⛔ Access Denied: Standard user accounts cannot log in to the Administrator Control Panel. Please log in via the User Login page (/login).');
+        return;
+      }
+
+      // 🔒 Generate & lock single active admin session ID for this browser tab
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      sessionStorage.setItem('frametrail_tab_admin_session_id', newSessionId);
+      localStorage.setItem('frametrail_active_admin_session_id', newSessionId);
+
       navigate('/admin');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');

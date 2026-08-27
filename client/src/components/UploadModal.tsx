@@ -7,10 +7,18 @@ import { MediaType } from '../types';
 import api from '../services/api';
 import { getVideoPlayerInfo } from '../utils/videoUtils';
 
+export interface UploadSummary {
+  count: number;
+  type: string;
+  category: string;
+  titles: string[];
+  sampleUrl?: string;
+}
+
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (summary?: UploadSummary) => void;
 }
 
 interface BatchFileItem {
@@ -174,12 +182,35 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
   const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
   const [customError, setCustomError] = useState<string | null>(null);
 
-  // When asset type changes, update default category & tag selections
+  // Reset all modal form states whenever asset type (Photo / Short Video / Movie) is switched
   React.useEffect(() => {
     const categories = getCategoriesForType(type);
     const tags = getTagsForType(type);
     setCategorySelect(categories[0]);
     setTagSelect(tags[0]);
+    setCustomCategory('');
+    setCustomTag('');
+
+    // Clear all batch file selections, link rows, cover thumbnails, & success/error banners
+    setFileList([]);
+    setUrlList([
+      {
+        id: '1',
+        url: '',
+        title: '',
+        description: '',
+        category: categories[0],
+        customCategory: '',
+        tags: tags[0],
+        customTags: '',
+        thumbnailFile: null,
+      },
+    ]);
+    setThumbnailFile(null);
+    setSubmitSuccess(false);
+    setCustomError(null);
+    setSubmitting(false);
+    setCurrentUploadIndex(0);
   }, [type]);
 
   function getCategoriesForType(t: MediaType) {
@@ -388,6 +419,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
 
+      const uploadedTitles: string[] = [];
+      let primaryCategory = '';
+      let sampleMediaUrl = '';
+
       if (uploadMode === 'url') {
         // 🔗 MULTI-LINK BATCH URL MODE
         const validLinks = urlList.filter((item) => item.url.trim());
@@ -410,6 +445,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
             item.category === 'Other'
               ? (item.customCategory.trim() || 'Custom')
               : (item.category || globalCategory);
+
+          uploadedTitles.push(item.title.trim());
+          if (!primaryCategory) primaryCategory = itemCategory;
+          if (!sampleMediaUrl) sampleMediaUrl = item.url.trim();
 
           // Compute Item Tags
           let itemTagArray: string[] = [];
@@ -470,6 +509,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
               ? (item.customCategory.trim() || 'Custom')
               : (item.category || globalCategory);
 
+          uploadedTitles.push(item.title || item.file.name);
+          if (!primaryCategory) primaryCategory = itemCategory;
+
           // Compute Item Tags
           let itemTagArray: string[] = [];
           if (item.tags === 'Other') {
@@ -509,6 +551,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
 
           if (cloudRes.data && cloudRes.data.data && cloudRes.data.data.url) {
             finalMediaUrl = cloudRes.data.data.url;
+            if (!sampleMediaUrl) sampleMediaUrl = finalMediaUrl;
             mediaR2Key = cloudRes.data.data.publicId || `cloudinary_${type}_${Date.now()}_${i}`;
           } else {
             throw new Error(`Cloudinary upload failed for file: ${item.file.name}`);
@@ -533,9 +576,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
       }
 
       setSubmitSuccess(true);
+      setFileList([]);
+      resetUploadState();
       fetchMedia();
       if (onSuccess) {
-        onSuccess();
+        onSuccess({
+          count: uploadedTitles.length,
+          type,
+          category: primaryCategory || globalCategory,
+          titles: uploadedTitles,
+          sampleUrl: sampleMediaUrl,
+        });
       }
     } catch (err: any) {
       console.error('[Batch Submit Upload Error]', err);
@@ -845,52 +896,38 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                   {type === 'photo' ? 'Location / Category' : 'Genre / Category'}
                                 </label>
                                 <select
-                                  value={item.category || activeCategoryList[0]}
+                                  value={item.category || categoryOptions[0]}
                                   onChange={(e) => updateBatchItemField(item.id, 'category', e.target.value)}
                                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                                 >
-                                  {activeCategoryList.map((cat) => (
-                                    <option key={cat} value={cat}>
-                                      {cat}
-                                    </option>
-                                  ))}
-                                  <option value="Other">Other (Specify Custom Category)...</option>
+                                  {dbCategories.length > 0 && (
+                                    <optgroup label="📁 Previously Uploaded DB Categories">
+                                      {dbCategories.map((cat) => (
+                                        <option key={`db_${cat}`} value={cat}>
+                                          {cat}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  <optgroup label="⭐ Preset Categories">
+                                    {getCategoriesForType(type).map((cat) => (
+                                      <option key={`def_${cat}`} value={cat}>
+                                        {cat}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  <option value="Other">Other (Create Custom Category)...</option>
                                 </select>
 
                                 {item.category === 'Other' && (
                                   <input
                                     type="text"
                                     required
-                                    placeholder="Enter custom category..."
+                                    placeholder="Enter custom category name..."
                                     value={item.customCategory || ''}
                                     onChange={(e) => updateBatchItemField(item.id, 'customCategory', e.target.value)}
-                                    className="w-full mt-1.5 bg-slate-900 border border-indigo-500/50 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
+                                    className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
                                   />
-                                )}
-
-                                {/* 📁 PREVIOUSLY UPLOADED CATEGORIES IN DB QUICK PICK BADGES */}
-                                {dbCategories.length > 0 && (
-                                  <div className="pt-1.5 space-y-1">
-                                    <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider block">
-                                      📁 Previously Uploaded Categories in DB:
-                                    </span>
-                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto custom-scrollbar">
-                                      {dbCategories.map((dbCat) => (
-                                        <button
-                                          key={dbCat}
-                                          type="button"
-                                          onClick={() => updateBatchItemField(item.id, 'category', dbCat)}
-                                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
-                                            item.category === dbCat
-                                              ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-sm'
-                                              : 'bg-slate-900 text-cyan-300 border-cyan-500/30 hover:bg-slate-800'
-                                          }`}
-                                        >
-                                          {dbCat}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
                                 )}
                               </div>
 
@@ -1147,26 +1184,37 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                               {type === 'photo' ? 'Location / Category' : 'Genre / Category'}
                             </label>
                             <select
-                              value={linkItem.category || activeCategoryList[0]}
+                              value={linkItem.category || categoryOptions[0]}
                               onChange={(e) => updateLinkRow(linkItem.id, 'category', e.target.value)}
                               className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                             >
-                              {activeCategoryList.map((cat) => (
-                                <option key={cat} value={cat}>
-                                  {cat}
-                                </option>
-                              ))}
-                              <option value="Other">Other (Specify Custom Category)...</option>
+                              {dbCategories.length > 0 && (
+                                <optgroup label="📁 Previously Uploaded DB Categories">
+                                  {dbCategories.map((cat) => (
+                                    <option key={`db_link_${cat}`} value={cat}>
+                                      {cat}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="⭐ Preset Categories">
+                                {getCategoriesForType(type).map((cat) => (
+                                  <option key={`def_link_${cat}`} value={cat}>
+                                    {cat}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <option value="Other">Other (Create Custom Category)...</option>
                             </select>
 
                             {linkItem.category === 'Other' && (
                               <input
                                 type="text"
                                 required
-                                placeholder="Enter custom category..."
+                                placeholder="Enter custom category name..."
                                 value={linkItem.customCategory || ''}
                                 onChange={(e) => updateLinkRow(linkItem.id, 'customCategory', e.target.value)}
-                                className="w-full mt-1.5 bg-slate-900 border border-indigo-500/50 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
+                                className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
                               />
                             )}
                           </div>

@@ -119,6 +119,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
     localStorage.removeItem('frametrail_user');
     localStorage.removeItem('frametrail_token');
+    localStorage.removeItem('frametrail_active_admin_session_id');
+    sessionStorage.removeItem('frametrail_tab_admin_session_id');
 
     if (wasAdmin) {
       window.location.href = '/admin-login';
@@ -129,6 +131,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const isAdmin = Boolean(isServerOnline && user && user.role === 'admin');
   const isAuthenticated = Boolean(isServerOnline && user && token);
+
+  // 🔒 SINGLE CONCURRENT ACTIVE ADMIN SESSION LOCK (1 Active Tab / Device Limit)
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+
+    const checkSessionLock = () => {
+      const activeSessionId = localStorage.getItem('frametrail_active_admin_session_id');
+      let myTabSessionId = sessionStorage.getItem('frametrail_tab_admin_session_id');
+
+      if (!myTabSessionId) {
+        myTabSessionId = activeSessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        sessionStorage.setItem('frametrail_tab_admin_session_id', myTabSessionId);
+        if (!activeSessionId) {
+          localStorage.setItem('frametrail_active_admin_session_id', myTabSessionId);
+        }
+      }
+
+      if (activeSessionId && myTabSessionId && activeSessionId !== myTabSessionId) {
+        alert('⛔ Admin Session Terminated: Your Administrator account was logged into another tab or device. Only ONE active admin session is permitted at a time for security.');
+        logout();
+      }
+    };
+
+    checkSessionLock();
+
+    window.addEventListener('storage', checkSessionLock);
+    const sessionInterval = setInterval(checkSessionLock, 1500);
+
+    return () => {
+      window.removeEventListener('storage', checkSessionLock);
+      clearInterval(sessionInterval);
+    };
+  }, [user]);
 
   // 10-Minute Inactivity Auto-Logout Timer for Admin Security
   useEffect(() => {
