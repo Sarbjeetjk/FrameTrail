@@ -1,0 +1,20 @@
+{
+  "short_name": "FrameTrail",
+  "name": "FrameTrail - Premium Media Vault & Streaming Platform",
+  "icons": [
+    {
+      "src": "/IMG_20240423_000718.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/IMG_20240423_000718.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090d16",
+  "theme_color": "#4f46e5",
+  "display": "standalone"
+}

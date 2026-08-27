@@ -50,9 +50,14 @@ export const MediaProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setLoading(true);
     setError(null);
     try {
-      const typeParam = activeType === 'all' ? undefined : activeType;
+      const currentSearch = params.search !== undefined ? params.search : searchQuery;
+      // 🔍 Global Search: If search query is active, omit type restriction so it searches across Photos, Videos & Movies
+      const typeParam = (currentSearch && currentSearch.trim())
+        ? undefined
+        : (params.type !== undefined ? params.type : (activeType === 'all' ? undefined : activeType));
+
       const res = await MediaService.getMedia({
-        search: searchQuery || undefined,
+        search: currentSearch || undefined,
         category: selectedCategory === 'All' ? undefined : selectedCategory,
         sortBy,
         type: typeParam,

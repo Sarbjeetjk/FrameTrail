@@ -3,8 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { MediaService } from '../services/mediaService';
 import { IMediaItem } from '../types';
 import { useMedia } from '../hooks/useMedia';
-import { ArrowLeft, Eye, Heart, Download, HardDrive, Tag } from 'lucide-react';
+import { ArrowLeft, Eye, Heart, Download, HardDrive, Tag, ExternalLink, Play } from 'lucide-react';
 import { getOptimizedImageUrl } from '../utils/imageUtils';
+import { getVideoPlayerInfo } from '../utils/videoUtils';
 
 export const MediaDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +51,101 @@ export const MediaDetailPage: React.FC = () => {
     );
   }
 
+  const [forceMode, setForceMode] = useState<'iframe' | 'direct' | 'auto'>('auto');
+
+  const playerInfo = getVideoPlayerInfo(item.url);
+  const isEmbedPlayer = forceMode === 'iframe' || (forceMode === 'auto' && playerInfo.isEmbed);
+
+  const renderMediaContent = () => {
+    if (item.type === 'photo') {
+      return (
+        <img
+          src={getOptimizedImageUrl(item.url, 2560)}
+          alt={item.title}
+          className="max-h-[70vh] w-auto object-contain rounded-2xl shadow-2xl"
+        />
+      );
+    }
+
+    if (isEmbedPlayer) {
+      return (
+        <div className="w-full space-y-3">
+          {/* Prominent 1-Click Stream Play Bar */}
+          <div className="p-3 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/50 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl">
+            <div className="flex items-center gap-2.5 text-xs font-extrabold text-white">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>HD MOVIE STREAM READY ({playerInfo.type.toUpperCase()})</span>
+            </div>
+
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-indigo-600 to-violet-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all hover:scale-105"
+            >
+              <Play className="w-4 h-4 fill-white" />
+              <span>CLICK TO PLAY / WATCH FULL MOVIE STREAM</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          <div className="relative aspect-video max-h-[70vh] w-full rounded-2xl overflow-hidden shadow-2xl bg-black border border-slate-800">
+            {/* Embedded Iframe Player with Sandbox Permissions */}
+            <iframe
+              src={playerInfo.embedUrl}
+              title={item.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
+              allowFullScreen
+              className="w-full h-full border-0 bg-black"
+            ></iframe>
+          </div>
+
+          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-400">
+            <span>Stream Provider: <strong className="text-indigo-300 font-mono">{item.url}</strong></span>
+            <span>If frame click is unresponsive, click green button above ↗</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full space-y-3">
+        <video
+          src={item.url}
+          controls
+          autoPlay
+          onError={() => setForceMode('iframe')}
+          className="w-full aspect-video max-h-[70vh] rounded-2xl shadow-2xl bg-black"
+        >
+          <source src={item.url} type="video/mp4" />
+          Your browser does not support HTML5 video playback.
+        </video>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 text-xs font-bold text-slate-400 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+          <span className="text-amber-400">If video fails to load in HTML5 player:</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setForceMode('iframe')}
+              className="text-indigo-400 hover:text-indigo-300 font-bold underline"
+            >
+              Switch to Stream Frame Player (Iframe)
+            </button>
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-400 hover:text-cyan-300 font-bold underline flex items-center gap-1"
+            >
+              Open Link <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <Link
@@ -62,13 +158,7 @@ export const MediaDetailPage: React.FC = () => {
       <div className="bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-xl grid grid-cols-1 lg:grid-cols-3">
         {/* Media Container */}
         <div className="lg:col-span-2 bg-slate-950 flex items-center justify-center p-6 min-h-[400px]">
-          {item.type === 'photo' ? (
-            <img src={getOptimizedImageUrl(item.url, 2560)} alt={item.title} className="max-h-[70vh] w-auto object-contain rounded-2xl shadow-2xl" />
-          ) : (
-            <video src={item.url} controls autoPlay className="w-full max-h-[70vh] rounded-2xl">
-              Your browser does not support HTML5 video.
-            </video>
-          )}
+          {renderMediaContent()}
         </div>
 
         {/* Info Column */}

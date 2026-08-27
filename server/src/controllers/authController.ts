@@ -180,4 +180,13 @@ export class AuthController {
       return sendError(res, 500, error.message || 'Error resetting password');
     }
   }
+
+  static async getAllUsers(req: Request, res: Response) {
+    try {
+      const users = await User.find({}).sort({ createdAt: -1 });
+      return sendResponse(res, 200, true, 'All registered users fetched', users);
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Error fetching users list');
+    }
+  }
 }

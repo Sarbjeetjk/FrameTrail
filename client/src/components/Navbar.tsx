@@ -50,8 +50,14 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const navigate = useNavigate();
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!searchQuery.trim()) return;
+    if (location.pathname !== '/' && location.pathname !== '/photos') {
+      navigate('/photos');
+    }
     fetchMedia({ search: searchQuery });
   };
 

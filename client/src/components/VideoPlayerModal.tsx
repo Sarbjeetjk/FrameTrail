@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { IMediaItem } from '../types';
-import { X, Heart, Clock, Film, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, Heart, Clock, Film, ExternalLink, RefreshCw, AlertCircle, Play, Globe } from 'lucide-react';
 import { useMedia } from '../hooks/useMedia';
+import { getVideoPlayerInfo } from '../utils/videoUtils';
 
 interface VideoPlayerModalProps {
   video: IMediaItem | null;
@@ -11,6 +12,8 @@ interface VideoPlayerModalProps {
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClose }) => {
   const { likeMediaItem } = useMedia();
   const [videoError, setVideoError] = useState(false);
+  const [forceIframeMode, setForceIframeMode] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
   const [currentStreamIndex, setCurrentStreamIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hasPausedRef = useRef<boolean>(false);
@@ -30,61 +33,25 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const isYouTubeUrl = (url: string) => {
-    return url.includes('youtube.com') || url.includes('youtu.be');
-  };
-
-  const isDriveUrl = (url: string) => {
-    return url.includes('drive.google.com');
-  };
-
-  const getYouTubeEmbedUrl = (url: string) => {
-    if (url.includes('youtu.be/')) {
-      const id = url.split('youtu.be/')[1]?.split('?')[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1`;
-    }
-    if (url.includes('watch?v=')) {
-      const id = url.split('watch?v=')[1]?.split('&')[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1`;
-    }
-    return url;
-  };
-
-  const getDriveEmbedUrl = (url: string) => {
-    const match = url.match(/\/file\/d\/([^\/]+)/);
-    if (match && match[1]) {
-      return `https://drive.google.com/file/d/${match[1]}/preview`;
-    }
-    return url;
-  };
-
   const rawUrl = video.url || '';
-  const isYouTube = isYouTubeUrl(rawUrl);
-  const isDrive = isDriveUrl(rawUrl);
+  const playerInfo = getVideoPlayerInfo(rawUrl);
 
   const getPlayableVideoUrl = () => {
-    if (isYouTube) {
-      return getYouTubeEmbedUrl(rawUrl);
-    }
-    if (isDrive) {
-      return getDriveEmbedUrl(rawUrl);
-    }
-
-    if (videoError || !rawUrl) {
+    if (useFallback) {
       return fallbackStreams[currentStreamIndex];
     }
-    
-    return rawUrl;
+    return playerInfo.embedUrl || rawUrl;
   };
 
   const playableUrl = getPlayableVideoUrl();
 
   const handleVideoError = () => {
-    console.warn('[Video Player Warning] Initial video URL failed to load. Switching to HD fallback stream...');
+    console.warn('[Video Player Warning] Direct HTML5 video failed to load. Displaying stream options...');
     setVideoError(true);
   };
 
   const handleSwitchStream = () => {
+    setUseFallback(true);
     setVideoError(true);
     setCurrentStreamIndex((prev) => (prev + 1) % fallbackStreams.length);
   };
@@ -112,6 +79,39 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
     onClose();
   };
 
+  const renderPlayer = () => {
+    // Render iframe for Google Drive, YouTube, Vimeo, Explicit Embeds, or Force Iframe Mode
+    if ((playerInfo.isEmbed || forceIframeMode) && !useFallback) {
+      return (
+        <iframe
+          src={playerInfo.embedUrl}
+          title={video.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
+          allowFullScreen
+          className="w-full h-full border-0"
+        ></iframe>
+      );
+    }
+
+    // Direct HTML5 Video Player
+    return (
+      <video
+        ref={videoRef}
+        key={playableUrl}
+        src={playableUrl}
+        controls
+        autoPlay
+        onError={handleVideoError}
+        poster={getPosterUrl()}
+        className="w-full h-full object-contain"
+      >
+        <source src={playableUrl} type="video/mp4" />
+        Your browser does not support HTML5 video streaming.
+      </video>
+    );
+  };
+
   return (
     <div
       onClick={handleBackdropClick}
@@ -127,17 +127,28 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
           <div className="flex items-center gap-2">
             <Film className="w-5 h-5 text-amber-400" />
             <h2 className="text-base font-bold text-white truncate max-w-md">{video.title}</h2>
+            {playerInfo.type === 'drive' && (
+              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-md">
+                Google Drive
+              </span>
+            )}
+            {playerInfo.type === 'youtube' && (
+              <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-red-500/20 text-red-300 border border-red-500/30 rounded-md">
+                YouTube
+              </span>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
             <a
-              href={playableUrl}
+              href={rawUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:opacity-95 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Open Direct Stream</span>
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Watch Full Movie Stream</span>
+              <ExternalLink className="w-3 h-3" />
             </a>
 
             <button
@@ -151,40 +162,38 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ video, onClo
 
         {/* Video Player Container */}
         <div className="relative aspect-video w-full bg-black flex items-center justify-center">
-          {isYouTube || isDrive ? (
-            <iframe
-              src={playableUrl}
-              title={video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full border-0"
-            ></iframe>
-          ) : (
-            <video
-              ref={videoRef}
-              key={playableUrl}
-              src={playableUrl}
-              controls
-              autoPlay
-              onError={handleVideoError}
-              poster={getPosterUrl()}
-              className="w-full h-full object-contain"
-            >
-              <source src={playableUrl} type="video/mp4" />
-              Your browser does not support HTML5 video streaming.
-            </video>
-          )}
+          {renderPlayer()}
 
-          {videoError && !isYouTube && (
-            <div className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-amber-950/80 border border-amber-500/40 rounded-xl text-amber-200 text-xs font-semibold flex items-center gap-2 shadow-lg backdrop-blur-md">
-              <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>Streaming via HD Backup Server</span>
-              <button
-                onClick={handleSwitchStream}
-                className="ml-2 font-bold underline text-white hover:text-cyan-300 flex items-center gap-1"
-              >
-                <RefreshCw className="w-3 h-3" /> Switch Server
-              </button>
+          {/* Warning Banner if HTML5 Video fails */}
+          {videoError && !playerInfo.isEmbed && !useFallback && (
+            <div className="absolute top-4 left-4 right-4 z-20 p-3 bg-slate-950/90 border border-amber-500/40 rounded-2xl text-slate-200 text-xs font-medium flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xl backdrop-blur-md">
+              <div className="flex items-center gap-2 text-amber-300">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>Video file cannot be played directly by standard HTML5 video.</span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setForceIframeMode(true)}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" /> Try Embed Frame
+                </button>
+                <a
+                  href={rawUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Open Link
+                </a>
+                <button
+                  onClick={handleSwitchStream}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors border border-slate-700"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Backup Server
+                </button>
+              </div>
             </div>
           )}
         </div>

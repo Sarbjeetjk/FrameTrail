@@ -13,6 +13,8 @@ export const FilterBar: React.FC = () => {
     setSortBy,
     activeType,
     setActiveType,
+    searchQuery,
+    setSearchQuery,
     fetchMedia,
   } = useMedia();
 
@@ -51,32 +53,35 @@ export const FilterBar: React.FC = () => {
   }, [activeType]);
 
   const handleCategorySelect = (cat: string) => {
+    setSearchQuery(''); // 🧹 Clear search input when category / city is clicked
     setSelectedCategory(cat);
-    fetchMedia({ page: 1, category: cat === 'All' ? undefined : cat });
+    fetchMedia({ page: 1, category: cat === 'All' ? undefined : cat, search: undefined });
   };
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
+    setSearchQuery(''); // 🧹 Clear search input when sort option is changed
     setSortBy(val);
     const sortOrder = val === 'oldest' ? 'asc' : 'desc';
-    fetchMedia({ page: 1, sortBy: 'createdAt', sortOrder });
+    fetchMedia({ page: 1, sortBy: 'createdAt', sortOrder, search: undefined });
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value as MediaType | 'all';
+    setSearchQuery(''); // 🧹 Clear search input when asset type is changed
     setActiveType(val);
-    fetchMedia({ page: 1, type: val === 'all' ? undefined : val });
+    fetchMedia({ page: 1, type: val === 'all' ? undefined : val, search: undefined });
   };
 
   return (
     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 pb-4 border-b border-slate-200">
       
-      {/* Category Section with Fixed Left Label */}
+      {/* Category / City Section with Dynamic Label */}
       <div className="flex items-center w-full md:w-auto min-w-0 overflow-hidden">
-        {/* Fixed City Label */}
+        {/* Dynamic Label: "City / Location:" for Photos, "Category:" for Videos and Movies */}
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 flex-shrink-0 pr-3 border-r border-slate-200/80 mr-3">
           <Filter className="w-3.5 h-3.5 text-indigo-600" />
-          <span>City:</span>
+          <span>{activeType === 'photo' ? 'City / Location:' : 'Category:'}</span>
         </div>
 
         {/* Horizontal Category Chips Slider */}
@@ -97,7 +102,7 @@ export const FilterBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Controls: Ultra-Compact Type Filter & Sort By Pills (No Scrolling, Fits 1 Single Row) */}
+      {/* Right Controls: Ultra-Compact Type Filter & Sort By Pills */}
       <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs font-semibold text-slate-600 shrink-0">
         
         {/* Media Type Filter Pill */}

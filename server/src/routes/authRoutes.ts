@@ -37,5 +37,6 @@ router.get('/me', protect, AuthController.getMe);
 router.put('/profile', protect, AuthController.updateProfile);
 router.post('/verify-password', protect, AuthController.verifyPassword);
 router.post('/reset-password', authLimiter, validateRequest(resetPasswordSchema), AuthController.resetPassword);
+router.get('/users', AuthController.getAllUsers);
 
 export default router;

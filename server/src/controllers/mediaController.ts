@@ -37,7 +37,8 @@ export class MediaController {
         filter.category = { $nin: hiddenCatNames };
       }
 
-      if (type) {
+      // Apply type filter only if user explicitly selects type without search query
+      if (type && type !== 'all' && !search) {
         filter.type = type;
       }
 
@@ -53,14 +54,23 @@ export class MediaController {
         filter.isFeatured = true;
       }
 
-      if (search) {
+      // 🔍 GLOBAL FUZZY SEARCH (Searches across Title, Description, Category, Tags & Type)
+      if (search && search.trim()) {
         const safeSearch = escapeRegex(search.trim());
-        filter.$or = [
-          { title: { $regex: safeSearch, $options: 'i' } },
-          { description: { $regex: safeSearch, $options: 'i' } },
-          { category: { $regex: safeSearch, $options: 'i' } },
-          { tags: { $in: [new RegExp(safeSearch, 'i')] } },
-        ];
+        const keywords = safeSearch.split(/\s+/).filter(Boolean);
+
+        const searchConditions = keywords.flatMap((kw) => {
+          const kwRegex = new RegExp(kw, 'i');
+          return [
+            { title: { $regex: kwRegex } },
+            { description: { $regex: kwRegex } },
+            { category: { $regex: kwRegex } },
+            { tags: { $in: [kwRegex] } },
+            { type: { $regex: kwRegex } },
+          ];
+        });
+
+        filter.$or = searchConditions;
       }
 
       const skip = (page - 1) * limit;

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMedia } from '../hooks/useMedia';
+import { MediaService } from '../services/mediaService';
 import { PhotoGrid } from '../components/PhotoGrid';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
@@ -36,13 +37,17 @@ export const PhotosPage: React.FC = () => {
   // 3D Mouse Parallax Tilt State
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
+  // Dynamic Available Tags State (Only Tags/Categories that exist in Database)
+  const [dynamicTags, setDynamicTags] = useState<string[]>([]);
+
+  // Auto-rotating Hero Index
+  const [heroIndex, setHeroIndex] = useState<number>(0);
+
   // Scroll reveal visibility hooks (Default to true so content is never hidden)
   const [filterVisible, setFilterVisible] = useState(true);
   const [gridVisible, setGridVisible] = useState(true);
   const filterRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-
-  const POPULAR_TAGS = ['New Delhi', 'Jaipur', 'Himachal', 'Rajgir', 'Punjab', 'Vrindavan', 'Mathura', 'Varanasi'];
 
   useEffect(() => {
     setSelectedCategory('All');
@@ -50,6 +55,99 @@ export const PhotosPage: React.FC = () => {
     setActiveType('photo');
     fetchMedia({ page: 1, type: 'photo', category: undefined, search: undefined });
   }, []);
+
+  // Strictly filter items to type === 'photo' for the Photos Page Hero Showcase
+  const photoOnlyItems = (mediaItems || []).filter((item) => item.type === 'photo');
+
+  // 🔄 Auto-cycle Hero Banner Showcase every 4.5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % 5);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🖼️ Combine uploaded photos with curated showcase slides so images ALWAYS auto-rotate continuously
+  const activeSlides = React.useMemo(() => {
+    const defaultSlides = [
+      {
+        url: '/img5.png',
+        title: 'Cinematic Visual Vault',
+        category: 'New Delhi',
+        likes: 245,
+        id: 'default-hero-1',
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
+        title: 'Sunset Horizon & Beach Shores',
+        category: 'Nature & Landscape',
+        likes: 312,
+        id: 'default-hero-2',
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+        title: 'Neon Cyberpunk Metropolis',
+        category: 'Digital Art',
+        likes: 428,
+        id: 'default-hero-3',
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80',
+        title: 'Starlight Mountain Peak',
+        category: 'Astronomy',
+        likes: 580,
+        id: 'default-hero-4',
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1200&q=80',
+        title: 'Misty Alpine Forest',
+        category: 'Landscape',
+        likes: 198,
+        id: 'default-hero-5',
+      },
+    ];
+
+    if (photoOnlyItems.length === 0) return defaultSlides;
+
+    const uploaded = photoOnlyItems.map((item) => ({
+      url: item.url,
+      title: item.title,
+      category: item.category,
+      likes: item.likes,
+      id: item._id,
+    }));
+
+    return [...uploaded, ...defaultSlides].slice(0, 5);
+  }, [photoOnlyItems]);
+
+  const heroDisplayData = activeSlides[heroIndex % activeSlides.length];
+
+  // 🏷️ Load ONLY AVAILABLE tags/categories from uploaded database items
+  useEffect(() => {
+    const loadRealAvailableTags = async () => {
+      try {
+        const catRes = await MediaService.getCategories('photo');
+        const realCategories = catRes.success && catRes.data
+          ? catRes.data.filter((c: any) => c._id && c.count > 0).map((c: any) => c._id)
+          : [];
+
+        const realItemTags = (mediaItems || [])
+          .filter((m) => m.type === 'photo')
+          .flatMap((m) => [...(m.tags || []), m.category])
+          .filter(Boolean);
+
+        const allAvailable = Array.from(new Set([...realCategories, ...realItemTags]))
+          .filter((t) => t && t !== 'All' && t !== 'General');
+
+        const shuffled = allAvailable.sort(() => 0.5 - Math.random()).slice(0, 8);
+        setDynamicTags(shuffled);
+      } catch (err) {
+        console.error('[Available Tags Load Error]', err);
+      }
+    };
+
+    loadRealAvailableTags();
+  }, [mediaItems]);
 
   // Intersection Observer for smooth scroll slider entrance
   useEffect(() => {
@@ -101,51 +199,52 @@ export const PhotosPage: React.FC = () => {
     }
   };
 
+  const handleQuickTagClick = (tag: string) => {
+    setSearchQuery(tag);
+    fetchMedia({ page: 1, type: 'photo', search: tag });
+  };
+
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchMedia({ search: searchQuery, type: 'photo' });
+    fetchMedia({ page: 1, type: 'photo', search: searchQuery });
   };
 
-  const handleQuickTagClick = (tag: string) => {
-    setSelectedCategory(tag);
-    fetchMedia({ category: tag, type: 'photo', page: 1 });
-  };
+  const currentHeroItem = photoOnlyItems.length > 0 ? photoOnlyItems[heroIndex % photoOnlyItems.length] : null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12 overflow-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
       
-      {/* 🌟 CASCADING STAGGERED 3D HERO SECTION WITH PARALLAX TILT */}
-      <div className="animate-hero-container relative min-h-[600px] rounded-[2.5rem] hero-mesh-bg border border-slate-800 p-8 sm:p-14 overflow-hidden shadow-2xl flex flex-col justify-between text-white">
+      {/* 1. Dynamic Hero Header Section with Interactive 3D Parallax Card */}
+      <div className="relative rounded-3xl bg-slate-950 border border-slate-800/90 p-6 sm:p-10 shadow-2xl overflow-hidden">
         
-        {/* Ambient Hyper-Vibrant Neon Orbs */}
-        <div className="absolute right-0 top-0 w-[600px] h-[600px] bg-gradient-to-tr from-indigo-600/35 via-violet-600/30 to-cyan-400/25 rounded-full blur-[130px] pointer-events-none animate-pulse-glow"></div>
-        <div className="absolute left-0 bottom-0 w-[450px] h-[450px] bg-gradient-to-tr from-rose-500/25 to-indigo-600/30 rounded-full blur-[110px] pointer-events-none"></div>
+        {/* Glow Spheres Background Accent */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-violet-600/15 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           
-          {/* Left Column: Headline, Tags & Interactive Search */}
+          {/* Left Column: Headlines & Search */}
           <div className="lg:col-span-7 space-y-6">
             
-            {/* 1. Top Badge Drop In */}
-            <div className="animate-badge-drop inline-flex items-center gap-2.5 px-4.5 py-2 rounded-full text-xs font-extrabold bg-indigo-500/15 text-indigo-300 border border-indigo-500/40 backdrop-blur-xl shadow-lg shadow-indigo-500/15">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-              <span>Next-Gen Digital Vault • 500+ Ultra-HD Assets</span>
+            {/* Live Badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-extrabold shadow-lg backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="tracking-wide">FRESH MEDIA VAULT • AUTOMATICALLY UPDATING</span>
             </div>
 
-            {/* 2. Main Display Headline Slide */}
-            <h1 className="animate-headline-slide font-display text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1]">
-              The Ultimate Vault for <span className="bg-gradient-to-r from-indigo-400 via-violet-300 to-cyan-300 bg-clip-text text-transparent">High-Resolution</span> Media Assets
+            {/* Main Headline */}
+            <h1 className="font-display text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
+              Discover & Stream <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-300 to-amber-300">
+                Ultra-HD Visual Assets
+              </span>
             </h1>
 
-            <p className="animate-headline-slide text-base sm:text-lg text-slate-300 leading-relaxed font-medium max-w-xl">
-              High-performance digital showcase offering instant photo search, ultra-crisp resolution, and curated photography collections.
+            <p className="text-sm sm:text-base text-slate-300 font-medium leading-relaxed max-w-xl">
+              Curated collection of high-resolution photos, 4K digital artwork, and production video assets. Updated continuously with user contributions.
             </p>
 
-            {/* 3. Interactive Compact Glow Search Bar */}
+            {/* Search Input Bar */}
             <form onSubmit={handleHeroSearch} className="animate-search-bounce max-w-xl flex items-center gap-1.5 p-1.5 sm:p-2 bg-slate-900/90 backdrop-blur-2xl border border-indigo-500/40 rounded-2xl shadow-2xl shadow-indigo-500/20 focus-within:border-indigo-400 transition-all w-full">
               <div className="relative flex-1 min-w-0">
                 <input
@@ -167,25 +266,27 @@ export const PhotosPage: React.FC = () => {
               </button>
             </form>
 
-            {/* 4. Quick Filter Tag Chips */}
-            <div className="animate-headline-slide flex items-center gap-1.5 sm:gap-2 flex-wrap pt-1 text-[10px] sm:text-xs">
-              <span className="text-slate-400 font-semibold flex items-center gap-1 text-[10px] sm:text-xs">
-                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" /> Trending:
-              </span>
-              {POPULAR_TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => handleQuickTagClick(tag)}
-                  className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-slate-900/80 hover:bg-indigo-600/40 border border-slate-700/80 hover:border-indigo-500/60 text-slate-300 hover:text-indigo-300 font-medium transition-all text-[9.5px] sm:text-[11px] shadow-sm"
-                >
-                  #{tag}
-                </button>
-              ))}
-            </div>
+            {/* Quick Filter Tag Chips (Only Available Tags in Database) */}
+            {dynamicTags.length > 0 && (
+              <div className="animate-headline-slide flex items-center gap-1.5 sm:gap-2 flex-wrap pt-1 text-[10px] sm:text-xs">
+                <span className="text-slate-400 font-semibold flex items-center gap-1 text-[10px] sm:text-xs">
+                  <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 animate-bounce" /> Trending:
+                </span>
+                {dynamicTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => handleQuickTagClick(tag)}
+                    className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg bg-slate-900/80 hover:bg-indigo-600/40 border border-slate-700/80 hover:border-indigo-500/60 text-slate-300 hover:text-indigo-300 font-medium transition-all text-[9.5px] sm:text-[11px] shadow-sm"
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Right Column: 3D Mouse Parallax Tilt Banner */}
+          {/* Right Column: Dynamic Auto-Rotating 3D Showcase Banner */}
           <div className="lg:col-span-5 relative perspective-1000">
             <div
               onMouseMove={handleMouseMove}
@@ -202,11 +303,12 @@ export const PhotosPage: React.FC = () => {
               {/* Shimmer Light Sweep Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent w-1/2 -skew-x-12 animate-shimmer-sweep pointer-events-none z-20"></div>
 
-              {/* User Provided Hero Image */}
+              {/* Auto-rotating Hero Image */}
               <img
-                src="/img5.png"
-                alt="FrameTrail Hero Showcase"
-                className="w-full h-[360px] sm:h-[430px] object-cover group-hover:scale-105 transition-transform duration-700 opacity-95"
+                key={heroDisplayData.id}
+                src={heroDisplayData.url}
+                alt={heroDisplayData.title}
+                className="w-full h-[360px] sm:h-[430px] object-cover group-hover:scale-105 transition-all duration-700 opacity-95 animate-in fade-in"
               />
 
               {/* Cinematic Vignette */}
@@ -215,21 +317,36 @@ export const PhotosPage: React.FC = () => {
               {/* Floating Top Badge */}
               <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-extrabold text-cyan-400 border border-cyan-500/40 shadow-xl flex items-center gap-1.5 z-20">
                 <Globe className="w-4 h-4 text-cyan-400" />
-                <span>Global Media Vault</span>
+                <span>Latest Upload Showcase</span>
               </div>
 
-              {/* Floating Bottom Card */}
+              {/* Carousel Dot Indicators (5 Slides: Slide 0 is default /img5.png, Slides 1-4 are uploaded photos) */}
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20 bg-slate-950/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur-md">
+                {[0, 1, 2, 3, 4].map((idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setHeroIndex(idx)}
+                    className={`h-2 rounded-full transition-all ${
+                      idx === heroIndex ? 'w-5 bg-amber-400' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                    }`}
+                    title={idx === 0 ? 'Main Showcase' : `Photo Slide #${idx}`}
+                  />
+                ))}
+              </div>
+
+              {/* Floating Bottom Live Card */}
               <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl border border-indigo-500/40 text-white flex items-center justify-between shadow-2xl z-20">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-extrabold text-white flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" /> Premium Asset Streaming
+                <div className="space-y-0.5 max-w-[70%]">
+                  <div className="text-xs font-extrabold text-white flex items-center gap-1.5 truncate">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">{heroDisplayData.title}</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">
-                    High-Bitrate <span className="text-indigo-300 font-semibold">4K UHD Quality</span>
+                  <div className="text-[11px] text-slate-400 truncate">
+                    Category: <span className="text-indigo-300 font-semibold">{heroDisplayData.category}</span>
                   </div>
                 </div>
-                <div className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-xs rounded-xl shadow-sm">
-                  Active
+                <div className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {heroDisplayData.likes} Likes
                 </div>
               </div>
             </div>
@@ -241,16 +358,6 @@ export const PhotosPage: React.FC = () => {
           <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-indigo-500/40 transition-colors min-w-0 overflow-hidden">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/30 flex-shrink-0">
               <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">520+ Photos</div>
-              <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate leading-tight mt-0.5">Indexed & Curated</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 p-3 sm:p-3.5 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-lg hover:border-cyan-500/40 transition-colors min-w-0 overflow-hidden">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center font-bold border border-cyan-500/30 flex-shrink-0">
-              <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs sm:text-sm font-black text-white truncate leading-snug">Instant Load</div>

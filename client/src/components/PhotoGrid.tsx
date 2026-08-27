@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { IMediaItem } from '../types';
 import { MediaCard } from './MediaCard';
 import { getOptimizedImageUrl } from '../utils/imageUtils';
+import { getVideoPlayerInfo } from '../utils/videoUtils';
 import {
   X,
   Heart,
@@ -358,57 +359,62 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({ items, loading }) => {
                 </button>
               )}
 
-              {/* Dynamic Multi-Media Player (YouTube / MP4 Video / Photo Image) */}
+              {/* Dynamic Multi-Media Player (YouTube / Google Drive / MP4 Video / Photo Image) */}
               <div
                 onClick={(e) => e.stopPropagation()}
                 className="media-content-card overflow-hidden flex items-center justify-center max-h-[75vh] max-w-[88vw] rounded-2xl shadow-2xl border border-slate-800/90 bg-black"
               >
-                {isYouTubeUrl(selectedPhoto.url) ? (
-                  <iframe
-                    src={getYouTubeEmbedUrl(selectedPhoto.url)}
-                    title={selectedPhoto.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-[82vw] sm:w-[75vw] md:w-[65vw] aspect-video rounded-2xl border-0"
-                  ></iframe>
-                ) : isVideoItem(selectedPhoto) ? (
-                  <video
-                    ref={videoRef}
-                    key={selectedPhoto.url}
-                    src={selectedPhoto.url}
-                    controls
-                    autoPlay
-                    className="max-h-[75vh] max-w-[85vw] object-contain rounded-2xl"
-                  >
-                    <source src={selectedPhoto.url} type="video/mp4" />
-                    Your browser does not support HTML5 video playback.
-                  </video>
-                ) : (
-                  <img
-                    src={getOptimizedImageUrl(selectedPhoto.url, 2560)}
-                    alt={selectedPhoto.title}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80';
-                    }}
-                    style={{
-                      transform: `translate3d(${panPosition.x}px, ${panPosition.y}px, 0) scale(${zoomLevel})`,
-                      transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isDragging) {
-                        setZoomLevel((prev) => (prev >= 3.5 ? 1 : prev >= 2 ? 3.5 : 2));
-                      }
-                    }}
-                    className="max-h-[72vh] max-w-[85vw] object-contain rounded-2xl shadow-2xl select-none"
-                  />
-                )}
+                {(() => {
+                  const playerInfo = getVideoPlayerInfo(selectedPhoto.url);
+                  if (playerInfo.isEmbed) {
+                    return (
+                      <iframe
+                        src={playerInfo.embedUrl}
+                        title={selectedPhoto.title}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-[82vw] sm:w-[75vw] md:w-[65vw] aspect-video rounded-2xl border-0"
+                      ></iframe>
+                    );
+                  }
+                  if (isVideoItem(selectedPhoto)) {
+                    return (
+                      <video
+                        ref={videoRef}
+                        key={selectedPhoto.url}
+                        src={selectedPhoto.url}
+                        controls
+                        autoPlay
+                        className="max-h-[75vh] max-w-[85vw] object-contain rounded-2xl"
+                      >
+                        <source src={selectedPhoto.url} type="video/mp4" />
+                        Your browser does not support HTML5 video playback.
+                      </video>
+                    );
+                  }
+                  return (
+                    <img
+                      src={getOptimizedImageUrl(selectedPhoto.url, 2560)}
+                      alt={selectedPhoto.title}
+                      onMouseDown={handleMouseDown}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseUp}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1600&q=80';
+                      }}
+                      className={`max-h-[75vh] max-w-[85vw] object-contain transition-transform duration-100 ease-out select-none ${
+                        zoomLevel > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+                      }`}
+                      style={{
+                        transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${
+                          panPosition.y / zoomLevel
+                        }px)`,
+                      }}
+                    />
+                  );
+                })()}
               </div>
 
               {/* Next Button */}
