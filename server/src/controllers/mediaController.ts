@@ -38,7 +38,7 @@ export class MediaController {
       }
 
       // Apply type filter only if user explicitly selects type without search query
-      if (type && type !== 'all' && !search) {
+      if (type && (type as string) !== 'all' && !search) {
         filter.type = type;
       }
 
