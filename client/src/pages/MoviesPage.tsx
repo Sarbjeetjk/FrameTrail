@@ -7,6 +7,8 @@ import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { Film, Star, Play } from 'lucide-react';
 
+import { recordVisitorHit } from '../utils/visitorTracker';
+
 export const MoviesPage: React.FC = () => {
   const { mediaItems, pagination, loading, setActiveType, fetchMedia, setSelectedCategory, setSearchQuery } = useMedia();
   const [activeMovie, setActiveMovie] = useState<IMediaItem | null>(null);
@@ -19,6 +21,7 @@ export const MoviesPage: React.FC = () => {
     setSearchQuery('');
     setActiveType('movie');
     fetchMedia({ page: 1, type: 'movie', category: undefined, search: undefined });
+    recordVisitorHit('Cinema & Movies Showcase');
   }, []);
 
   // Strictly filter items to type === 'movie' for the Movies Billboard Showcase

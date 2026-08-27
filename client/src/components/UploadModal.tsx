@@ -123,9 +123,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   const [type, setType] = useState<MediaType>('photo');
 
-  // Compute active category & tag options depending on current asset type
-  const activeCategoryList =
-    type === 'photo' ? photoCategoryList : type === 'video' ? videoCategoryList : movieCategoryList;
+  // Dynamic Categories list fetched from MongoDB Atlas
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(photoCategoryList);
+
+  // Compute active category & tag options (combines all real DB categories + default list)
+  const activeCategoryList = Array.from(
+    new Set([
+      ...dbCategories,
+      ...(type === 'photo' ? photoCategoryList : type === 'video' ? videoCategoryList : movieCategoryList),
+    ])
+  );
   const activeTagList =
     type === 'photo' ? photoTagList : type === 'video' ? videoTagList : movieTagList;
 
@@ -151,9 +159,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
 
   // Custom Cover / Poster Thumbnail Image File State (for Video and Movie file uploads)
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-
-  // Dynamic Categories list fetched from MongoDB Atlas
-  const [categoryOptions, setCategoryOptions] = useState<string[]>(photoCategoryList);
 
   // Category Dropdown State with Other custom input
   const [categorySelect, setCategorySelect] = useState(photoCategoryList[0]);
@@ -191,9 +196,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
       try {
         const res = await MediaService.getCategories();
         if (res.success && res.data) {
-          const fetchedNames = res.data.map((c) => c._id).filter(Boolean);
+          const fetchedNames = res.data.map((c: any) => c._id || c.name || c).filter(Boolean);
+          setDbCategories(fetchedNames);
           const currentDefaults = getCategoriesForType(type);
-          const combined = Array.from(new Set([...currentDefaults, ...fetchedNames]));
+          const combined = Array.from(new Set([...fetchedNames, ...currentDefaults]));
           setCategoryOptions(combined);
         }
       } catch (err) {
@@ -623,20 +629,27 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         <div className="p-6 space-y-5 relative z-10 max-h-[82vh] overflow-y-auto custom-scrollbar">
           {submitSuccess ? (
             <div className="text-center py-8 space-y-4 animate-in fade-in">
-              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
-                <CheckCircle2 className="w-8 h-8" />
+              <div className="w-16 h-16 bg-emerald-500/15 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto border border-emerald-500/40 shadow-xl shadow-emerald-500/20 animate-bounce">
+                <CheckCircle2 className="w-9 h-9 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-black text-white">
-                {fileList.length > 1 ? `All ${fileList.length} Assets Uploaded Successfully!` : 'Asset Saved Successfully!'}
-              </h3>
-              <p className="text-xs text-slate-300 max-w-sm mx-auto font-medium leading-relaxed">
-                Media records saved directly online to your MongoDB Atlas database.
-              </p>
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 font-mono text-xs font-black">
+                  <span>🎉 Uploaded Successfully! 📸✨</span>
+                </div>
+                <h3 className="text-xl font-black text-white pt-2">
+                  {fileList.length > 1
+                    ? `🎉 All ${fileList.length} Assets Uploaded Successfully! 🚀`
+                    : `🎉 ${type === 'photo' ? 'Photo' : type === 'video' ? 'Video' : 'Movie'} Uploaded Successfully! 📸✨`}
+                </h3>
+                <p className="text-xs text-slate-300 max-w-sm mx-auto font-medium leading-relaxed">
+                  Media asset and category tags have been published directly to Cloudinary & MongoDB Atlas database.
+                </p>
+              </div>
               <button
                 onClick={handleClose}
-                className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:opacity-95 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30"
+                className="px-8 py-3 bg-gradient-to-r from-emerald-600 via-indigo-600 to-violet-600 hover:opacity-95 text-white rounded-2xl text-xs font-extrabold transition-all shadow-xl shadow-indigo-600/30 active:scale-95"
               >
-                Done & View Gallery
+                Done & View Gallery 📸
               </button>
             </div>
           ) : (
@@ -853,6 +866,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                     onChange={(e) => updateBatchItemField(item.id, 'customCategory', e.target.value)}
                                     className="w-full mt-1.5 bg-slate-900 border border-indigo-500/50 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
                                   />
+                                )}
+
+                                {/* 📁 PREVIOUSLY UPLOADED CATEGORIES IN DB QUICK PICK BADGES */}
+                                {dbCategories.length > 0 && (
+                                  <div className="pt-1.5 space-y-1">
+                                    <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider block">
+                                      📁 Previously Uploaded Categories in DB:
+                                    </span>
+                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto custom-scrollbar">
+                                      {dbCategories.map((dbCat) => (
+                                        <button
+                                          key={dbCat}
+                                          type="button"
+                                          onClick={() => updateBatchItemField(item.id, 'category', dbCat)}
+                                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                                            item.category === dbCat
+                                              ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-sm'
+                                              : 'bg-slate-900 text-cyan-300 border-cyan-500/30 hover:bg-slate-800'
+                                          }`}
+                                        >
+                                          {dbCat}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
 

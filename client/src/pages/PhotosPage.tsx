@@ -22,6 +22,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
+import { recordVisitorHit } from '../utils/visitorTracker';
+
 export const PhotosPage: React.FC = () => {
   const {
     mediaItems,
@@ -54,6 +56,7 @@ export const PhotosPage: React.FC = () => {
     setSearchQuery('');
     setActiveType('photo');
     fetchMedia({ page: 1, type: 'photo', category: undefined, search: undefined });
+    recordVisitorHit('Photos Showcase Gallery');
   }, []);
 
   // Strictly filter items to type === 'photo' for the Photos Page Hero Showcase

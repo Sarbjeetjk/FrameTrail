@@ -51,6 +51,8 @@ const CenterSpreadVideoCard: React.FC<{ index: number; children: React.ReactNode
   );
 };
 
+import { recordVisitorHit } from '../utils/visitorTracker';
+
 export const VideosPage: React.FC = () => {
   const { mediaItems, pagination, loading, setActiveType, fetchMedia, setSelectedCategory, setSearchQuery } = useMedia();
   const [activeVideo, setActiveVideo] = useState<IMediaItem | null>(null);
@@ -61,6 +63,7 @@ export const VideosPage: React.FC = () => {
     setSearchQuery('');
     setActiveType('video');
     fetchMedia({ page: 1, type: 'video', category: undefined, search: undefined });
+    recordVisitorHit('Short Videos Vault');
   }, []);
 
   const handlePageChange = (page: number) => {

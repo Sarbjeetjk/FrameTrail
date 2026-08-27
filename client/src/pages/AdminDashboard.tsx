@@ -216,14 +216,16 @@ export const AdminDashboard: React.FC = () => {
   // Real Registered Users list backed by MongoDB Atlas
   const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
 
-  const loadAdminData = async () => {
-    setLoading(true);
+  const loadAdminData = async (silent: boolean = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setServerError(false);
     try {
       const isHealthy = await checkServerHealth();
       if (!isHealthy) {
         setServerError(true);
-        setLoading(false);
+        if (!silent) setLoading(false);
         return;
       }
 
@@ -257,17 +259,39 @@ export const AdminDashboard: React.FC = () => {
       if (usersRes && usersRes.data && usersRes.data.data) {
         setRegisteredUsers(usersRes.data.data);
       }
+
+      // Sync latest system logs from localStorage in background
+      const savedLogs = localStorage.getItem('frametrail_system_logs');
+      if (savedLogs) {
+        try {
+          const parsed = JSON.parse(savedLogs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSystemLogs(parsed);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
     } catch (err: any) {
       console.error('[Admin Dashboard Error]', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
+  // 🔄 REAL-TIME SILENT BACKGROUND AUTO-SYNC HEARTBEAT (Auto-refreshes every 4 seconds)
   useEffect(() => {
-    if (isAdmin) {
-      loadAdminData();
-    }
+    if (!isAdmin) return;
+
+    loadAdminData(false); // Initial load with spinner
+
+    const syncInterval = setInterval(() => {
+      loadAdminData(true); // Silent background auto-refresh
+    }, 4000);
+
+    return () => clearInterval(syncInterval);
   }, [isAdmin]);
 
   // Real-Time System Activity Telemetry Event Logger
@@ -278,8 +302,8 @@ export const AdminDashboard: React.FC = () => {
       event,
       user: user?.name || 'Super Admin',
       ip: systemLogs.length > 0 && systemLogs[0].ip ? systemLogs[0].ip : '103.211.54.12',
-      location: systemLogs.length > 0 && systemLogs[0].location ? systemLogs[0].location : 'Chandigarh, India',
-      coordinates: systemLogs.length > 0 && systemLogs[0].coordinates ? systemLogs[0].coordinates : { lat: 30.7333, lng: 76.7794 },
+      location: systemLogs.length > 0 && systemLogs[0].location ? systemLogs[0].location : 'New Delhi, India',
+      coordinates: systemLogs.length > 0 && systemLogs[0].coordinates ? systemLogs[0].coordinates : { lat: 28.6139, lng: 77.2090 },
       device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
       isp: systemLogs.length > 0 && systemLogs[0].isp ? systemLogs[0].isp : 'Reliance Jio Infocomm Limited',
       networkType: '4G / Wi-Fi',
@@ -289,7 +313,11 @@ export const AdminDashboard: React.FC = () => {
       detail,
       level,
     };
-    setSystemLogs((prev) => [newLog, ...prev]);
+    setSystemLogs((prev) => {
+      const updated = [newLog, ...prev];
+      localStorage.setItem('frametrail_system_logs', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Soft Delete: Move item to Trash Bin (marks isDeleted: true in MongoDB Atlas and hides from public gallery)
@@ -519,9 +547,14 @@ export const AdminDashboard: React.FC = () => {
       if (res.data && res.data.success) {
         if (deleteLogTarget === 'all') {
           setSystemLogs([]);
+          localStorage.removeItem('frametrail_system_logs');
           setNotice('All system activity logs purged successfully after password verification.');
         } else {
-          setSystemLogs((prev) => prev.filter((l) => l.id !== deleteLogTarget.id));
+          setSystemLogs((prev) => {
+            const updated = prev.filter((l) => l.id !== deleteLogTarget.id);
+            localStorage.setItem('frametrail_system_logs', JSON.stringify(updated));
+            return updated;
+          });
           setNotice(`Activity log "${deleteLogTarget.event}" deleted successfully.`);
         }
         setPurgeLogsModalOpen(false);
@@ -905,7 +938,7 @@ export const AdminDashboard: React.FC = () => {
               </button>
 
               <button
-                onClick={loadAdminData}
+                onClick={() => loadAdminData(false)}
                 className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors shadow-sm"
                 title="Refresh System Data"
               >
@@ -1313,7 +1346,7 @@ export const AdminDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={loadAdminData}
+                  onClick={() => loadAdminData(false)}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
@@ -2020,7 +2053,18 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Upload Modal */}
-      <UploadModal isOpen={uploadModalOpen} onClose={() => setUploadModalOpen(false)} onSuccess={loadAdminData} />
+      <UploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        onSuccess={() => {
+          loadAdminData();
+          logAdminEvent(
+            'ASSET_UPLOADED',
+            `New media assets uploaded and published directly to Cloudinary & MongoDB Atlas database.`,
+            'success'
+          );
+        }}
+      />
     </div>
   );
 };
