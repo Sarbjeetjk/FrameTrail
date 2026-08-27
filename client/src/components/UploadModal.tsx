@@ -575,6 +575,38 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         }
       }
 
+      // 📝 Log ASSET_UPLOADED event to system activity logs!
+      try {
+        const savedLogs = localStorage.getItem('frametrail_system_logs');
+        let currentLogs: any[] = [];
+        if (savedLogs) {
+          try { currentLogs = JSON.parse(savedLogs); } catch (e) {}
+        }
+        const userSaved = JSON.parse(localStorage.getItem('frametrail_user') || '{}');
+        const firstLog = currentLogs[0] || {};
+        const count = uploadedTitles.length;
+        const uploadLog = {
+          id: `log_up_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          timestamp: Date.now(),
+          time: 'Just now',
+          event: 'ASSET_UPLOADED',
+          user: userSaved.name || 'Super Admin',
+          ip: firstLog.ip || '103.211.54.12',
+          location: firstLog.location || 'New Delhi, India',
+          coordinates: firstLog.coordinates || { lat: 28.6139, lng: 77.209 },
+          device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
+          isp: firstLog.isp || 'Reliance Jio Infocomm Limited',
+          networkType: '4G / Wi-Fi',
+          screenRes: `${window.screen.width} x ${window.screen.height}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+          hardwareSpec: '16 GB RAM (16 CPU Cores)',
+          detail: `Uploaded ${count} new ${type.toUpperCase()} asset(s) ("${uploadedTitles.join(', ')}") to category "${primaryCategory || globalCategory}".`,
+          level: 'success',
+        };
+        const updated = [uploadLog, ...currentLogs];
+        localStorage.setItem('frametrail_system_logs', JSON.stringify(updated.slice(0, 100)));
+      } catch (e) {}
+
       setSubmitSuccess(true);
       setFileList([]);
       resetUploadState();

@@ -218,10 +218,10 @@ export const AdminDashboard: React.FC = () => {
 
       // Sync latest system logs from localStorage in background
       const savedLogs = localStorage.getItem('frametrail_system_logs');
-      if (savedLogs) {
+      if (savedLogs !== null) {
         try {
           const parsed = JSON.parse(savedLogs);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             setSystemLogs(parsed);
           }
         } catch (e) {
@@ -342,17 +342,30 @@ export const AdminDashboard: React.FC = () => {
 
   // Real-Time System Activity Telemetry Event Logger
   const logAdminEvent = (event: string, detail: string, level: 'info' | 'warn' | 'success' | 'error' = 'info') => {
+    let currentLogs: any[] = [];
+    try {
+      const saved = localStorage.getItem('frametrail_system_logs');
+      if (saved) currentLogs = JSON.parse(saved);
+    } catch (e) {
+      currentLogs = systemLogs;
+    }
+    if (!Array.isArray(currentLogs) || currentLogs.length === 0) {
+      currentLogs = systemLogs;
+    }
+
+    const firstLog = currentLogs[0] || {};
+
     const newLog = {
       id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       timestamp: Date.now(),
       time: 'Just now',
       event,
       user: user?.name || 'Super Admin',
-      ip: systemLogs.length > 0 && systemLogs[0].ip ? systemLogs[0].ip : '103.211.54.12',
-      location: systemLogs.length > 0 && systemLogs[0].location ? systemLogs[0].location : 'New Delhi, India',
-      coordinates: systemLogs.length > 0 && systemLogs[0].coordinates ? systemLogs[0].coordinates : { lat: 28.6139, lng: 77.2090 },
+      ip: firstLog.ip || '103.211.54.12',
+      location: firstLog.location || 'New Delhi, India',
+      coordinates: firstLog.coordinates || { lat: 28.6139, lng: 77.2090 },
       device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
-      isp: systemLogs.length > 0 && systemLogs[0].isp ? systemLogs[0].isp : 'Reliance Jio Infocomm Limited',
+      isp: firstLog.isp || 'Reliance Jio Infocomm Limited',
       networkType: '4G / Wi-Fi',
       screenRes: `${window.screen.width} x ${window.screen.height}`,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
@@ -360,12 +373,13 @@ export const AdminDashboard: React.FC = () => {
       detail,
       level,
     };
-    setSystemLogs((prev) => {
-      const updated = [newLog, ...prev];
-      const processed = process30DayRetention(updated);
-      localStorage.setItem('frametrail_system_logs', JSON.stringify(processed));
-      return processed;
-    });
+
+    const updated = [newLog, ...currentLogs];
+    const processed = process30DayRetention(updated);
+
+    // Save to localStorage SYNCHRONOUSLY so subsequent loadAdminData() reads the new log!
+    localStorage.setItem('frametrail_system_logs', JSON.stringify(processed));
+    setSystemLogs(processed);
   };
 
   const handleRestoreLog = (logToRestore: any) => {
@@ -1009,14 +1023,6 @@ export const AdminDashboard: React.FC = () => {
                     {unreadMessagesCount}
                   </span>
                 )}
-              </button>
-
-              <button
-                onClick={() => loadAdminData(false)}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors shadow-sm"
-                title="Refresh System Data"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
 
               <Link

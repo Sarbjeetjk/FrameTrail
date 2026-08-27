@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { UserPlus, ShieldAlert, Info } from 'lucide-react';
+import { logActivity } from '../utils/activityLogger';
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
@@ -28,6 +29,12 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       await register(name, email, password, role);
+      logActivity({
+        event: 'USER_REGISTERED',
+        detail: `New user registered account: ${name} (${email}) [Role: ${role.toUpperCase()}].`,
+        user: name,
+        level: 'success',
+      });
       navigate('/');
     } catch (err: any) {
       console.error('[Registration Error]', err);

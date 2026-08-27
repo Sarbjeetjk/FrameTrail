@@ -56,6 +56,7 @@ export const recordVisitorHit = async (pageName: string) => {
 
     const newVisitorLog = {
       id: `log_vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: Date.now(),
       time: 'Just now',
       event: 'VISITOR_GALLERY_ACCESS',
       user: 'Guest Visitor',

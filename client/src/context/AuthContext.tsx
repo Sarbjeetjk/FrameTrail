@@ -132,36 +132,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isAdmin = Boolean(isServerOnline && user && user.role === 'admin');
   const isAuthenticated = Boolean(isServerOnline && user && token);
 
-  // 🔒 SINGLE CONCURRENT ACTIVE ADMIN SESSION LOCK (1 Active Tab / Device Limit)
+  // 🔒 SINGLE CONCURRENT ACTIVE ADMIN SESSION LOCK (1 Active Tab Limit)
   useEffect(() => {
     if (!user || user.role !== 'admin') return;
 
+    // Retrieve or create unique Tab ID for THIS specific tab
+    let myTabId = sessionStorage.getItem('frametrail_tab_admin_session_id');
+    if (!myTabId) {
+      myTabId = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      sessionStorage.setItem('frametrail_tab_admin_session_id', myTabId);
+    }
+
+    // Refreshing/mounting this active admin tab re-asserts its active session lock in localStorage
+    localStorage.setItem('frametrail_active_admin_session_id', myTabId);
+
     const checkSessionLock = () => {
-      const activeSessionId = localStorage.getItem('frametrail_active_admin_session_id');
-      let myTabSessionId = sessionStorage.getItem('frametrail_tab_admin_session_id');
+      const currentActiveId = localStorage.getItem('frametrail_active_admin_session_id');
+      const currentTabId = sessionStorage.getItem('frametrail_tab_admin_session_id');
 
-      if (!myTabSessionId) {
-        myTabSessionId = activeSessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        sessionStorage.setItem('frametrail_tab_admin_session_id', myTabSessionId);
-        if (!activeSessionId) {
-          localStorage.setItem('frametrail_active_admin_session_id', myTabSessionId);
-        }
-      }
-
-      if (activeSessionId && myTabSessionId && activeSessionId !== myTabSessionId) {
-        alert('⛔ Admin Session Terminated: Your Administrator account was logged into another tab or device. Only ONE active admin session is permitted at a time for security.');
+      if (currentActiveId && currentTabId && currentActiveId !== currentTabId) {
+        // Tab session was taken over by another tab -> logout cleanly without native browser alerts
         logout();
       }
     };
 
-    checkSessionLock();
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'frametrail_active_admin_session_id') {
+        checkSessionLock();
+      }
+    };
 
-    window.addEventListener('storage', checkSessionLock);
-    const sessionInterval = setInterval(checkSessionLock, 1500);
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      window.removeEventListener('storage', checkSessionLock);
-      clearInterval(sessionInterval);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [user]);
 
@@ -174,7 +178,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const resetTimer = () => {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
-        alert('🔒 Session Expired: You have been automatically logged out after 10 minutes of inactivity for security.');
         logout();
       }, 10 * 60 * 1000); // 10 minutes (600,000 ms)
     };

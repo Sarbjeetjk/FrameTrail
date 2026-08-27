@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Clock, Send, CheckCircle2, MessageSquare } from 'lucide-react';
 import api from '../services/api';
+import { logActivity } from '../utils/activityLogger';
 
 export const ContactUsPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -45,6 +46,14 @@ export const ContactUsPage: React.FC = () => {
       const existing = localStorage.getItem('frametrail_contact_messages');
       const msgList = existing ? JSON.parse(existing) : [];
       localStorage.setItem('frametrail_contact_messages', JSON.stringify([newMessage, ...msgList]));
+      
+      logActivity({
+        event: 'CONTACT_MESSAGE_SENT',
+        detail: `Visitor "${name}" (${email}) submitted inquiry: "${subject}".`,
+        user: name,
+        level: 'info',
+      });
+
       setSubmitted(true);
     } finally {
       setLoading(false);

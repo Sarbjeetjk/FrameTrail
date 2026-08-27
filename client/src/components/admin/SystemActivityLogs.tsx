@@ -13,6 +13,40 @@ interface SystemActivityLogsProps {
   onSelectLogDetails: (log: any) => void;
 }
 
+const formatLogTime = (timestamp?: number, staticTime?: string, logId?: string) => {
+  let timeVal = timestamp;
+
+  if (!timeVal && logId) {
+    const match = logId.match(/\d{12,14}/);
+    if (match) {
+      timeVal = parseInt(match[0], 10);
+    }
+  }
+
+  if (!timeVal) return staticTime || 'Just now';
+
+  const diffMs = Date.now() - timeVal;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 30) return 'Just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+
+  const dateObj = new Date(timeVal);
+  return dateObj.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 export const SystemActivityLogs: React.FC<SystemActivityLogsProps> = ({
   systemLogs,
   trashedSystemLogs,
@@ -49,14 +83,6 @@ export const SystemActivityLogs: React.FC<SystemActivityLogsProps> = ({
             <span>Clear Logs</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Refresh</span>
-          </button>
         </div>
       </div>
 
@@ -124,7 +150,7 @@ export const SystemActivityLogs: React.FC<SystemActivityLogsProps> = ({
             >
               <div className="space-y-1.5 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                  <span className="text-indigo-400 font-bold">[{log.time}]</span>
+                  <span className="text-indigo-400 font-bold">[{formatLogTime(log.timestamp, log.time, log.id)}]</span>
                   <span className="text-cyan-300 font-black tracking-wide uppercase px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30">
                     {log.event}
                   </span>

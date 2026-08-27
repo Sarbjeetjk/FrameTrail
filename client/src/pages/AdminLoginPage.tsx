@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, LogIn, ShieldAlert, Key, Lock, ArrowLeft, Mail, CheckCircle2, X, RefreshCw } from 'lucide-react';
+import { ShieldCheck, LogIn, ShieldAlert, Key, Lock, ArrowLeft, Mail, CheckCircle2, X, RefreshCw, Zap } from 'lucide-react';
 import api from '../services/api';
+import { logActivity } from '../utils/activityLogger';
 
 export const AdminLoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -13,6 +14,7 @@ export const AdminLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeSessionWarning, setActiveSessionWarning] = useState(false);
 
   // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -24,9 +26,22 @@ export const AdminLoginPage: React.FC = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotNotice, setForgotNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeLogin = async (force: boolean = false) => {
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter both admin email and password.');
+      return;
+    }
+
     setError(null);
+
+    // Check if an active admin session is already running in another tab/device
+    const existingActiveSession = localStorage.getItem('frametrail_active_admin_session_id') || localStorage.getItem('frametrail_token');
+
+    if (existingActiveSession && !force) {
+      setActiveSessionWarning(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -41,16 +56,30 @@ export const AdminLoginPage: React.FC = () => {
       }
 
       // 🔒 Generate & lock single active admin session ID for this browser tab
-      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const newSessionId = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       sessionStorage.setItem('frametrail_tab_admin_session_id', newSessionId);
       localStorage.setItem('frametrail_active_admin_session_id', newSessionId);
 
+      logActivity({
+        event: 'ADMIN_LOGIN',
+        detail: `Administrator logged into Master Control Panel: ${email}.`,
+        user: savedUser.name || 'Super Admin',
+        level: 'success',
+      });
+
+      setActiveSessionWarning(false);
       navigate('/admin');
     } catch (err: any) {
+      setActiveSessionWarning(false);
       setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeLogin(false);
   };
 
   // Step 1: Send Real 6-Digit OTP to Gmail Inbox
@@ -156,6 +185,38 @@ export const AdminLoginPage: React.FC = () => {
           </div>
         )}
 
+        {/* ⚠️ Active Admin Session Warning Banner */}
+        {activeSessionWarning && (
+          <div className="p-4 bg-amber-950/80 border-2 border-amber-500/60 rounded-2xl text-amber-200 text-xs font-semibold space-y-3 shadow-xl animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-white text-sm font-black mb-0.5">⚠️ Active Session Detected</strong>
+                <span>An Admin is currently logged in on another tab or device. Logging in will automatically terminate the previous session.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setActiveSessionWarning(false)}
+                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => executeLogin(true)}
+                disabled={loading}
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:opacity-95 text-slate-950 text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20"
+              >
+                <Zap className="w-4 h-4 fill-current" />
+                <span>Login Anyway</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Admin Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4 font-medium relative z-10 text-xs">
           <div>
@@ -167,7 +228,10 @@ export const AdminLoginPage: React.FC = () => {
               required
               placeholder="Enter admin email address"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (activeSessionWarning) setActiveSessionWarning(false);
+              }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3.5 text-sm text-white focus:outline-none focus:border-indigo-500 font-semibold"
             />
           </div>
@@ -197,7 +261,10 @@ export const AdminLoginPage: React.FC = () => {
               required
               placeholder="Enter admin password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (activeSessionWarning) setActiveSessionWarning(false);
+              }}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3.5 text-sm text-white focus:outline-none focus:border-indigo-500 font-semibold"
             />
           </div>

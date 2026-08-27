@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { LogIn, ShieldAlert, Info, Key, CheckCircle2, ArrowLeft, Mail, RefreshCw } from 'lucide-react';
 import api from '../services/api';
+import { logActivity } from '../utils/activityLogger';
 
 export const LoginPage: React.FC = () => {
   const { login, resetPassword } = useAuth();
@@ -40,6 +41,12 @@ export const LoginPage: React.FC = () => {
         setError('⛔ Access Denied: Administrator accounts cannot log in through the standard User Login page. Please log in via the Secure Admin Portal (/admin-login).');
         return;
       }
+      logActivity({
+        event: 'USER_LOGIN',
+        detail: `User logged into account: ${email}.`,
+        user: savedUser.name || email,
+        level: 'info',
+      });
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');
