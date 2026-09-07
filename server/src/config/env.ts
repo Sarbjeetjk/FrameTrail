@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
 
 export const env = {
   PORT: process.env.PORT || 5000,
@@ -15,5 +15,9 @@ export const env = {
     SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY || '',
     BUCKET_NAME: process.env.R2_BUCKET_NAME || 'frametrail-media',
     PUBLIC_DOMAIN: process.env.R2_PUBLIC_DOMAIN || '',
+  },
+  SENDGRID: {
+    API_KEY: process.env.SENDGRID_API_KEY || '',
+    FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || 'sarbjeetkumar76350@gmail.com',
   },
 };

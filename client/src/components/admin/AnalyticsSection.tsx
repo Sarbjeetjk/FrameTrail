@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Award, ShieldCheck, TrendingUp, Sparkles, Activity } from 'lucide-react';
+import { Eye, Award, ShieldCheck, TrendingUp, Activity } from 'lucide-react';
 import { IMediaItem } from '../../types';
 
 interface AnalyticsSectionProps {
@@ -36,7 +36,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({ adminMediaLi
           </div>
           <div className="text-3xl font-black text-white">{totalLikes}</div>
           <div className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
             <span>High engagement ratio</span>
           </div>
         </div>

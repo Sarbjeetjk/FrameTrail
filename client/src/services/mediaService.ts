@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ApiResponse, IMediaItem, MediaType, AdminStats } from '../types';
+import { ApiResponse, IMediaItem, MediaType, AdminStats, UserSpaceQuota, UserSpaceData } from '../types';
 
 export interface GetMediaParams {
   page?: number;
@@ -11,6 +11,7 @@ export interface GetMediaParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   featured?: boolean;
+  mySpace?: boolean;
 }
 
 export class MediaService {
@@ -31,6 +32,22 @@ export class MediaService {
 
   static async getCategories(type?: string): Promise<ApiResponse<{ _id: string; count: number }[]>> {
     const response = await api.get('/media/categories', { params: type ? { type } : undefined });
+    return response.data;
+  }
+
+  // 🌟 User Space Operations
+  static async getMySpace(): Promise<ApiResponse<{ quota: UserSpaceQuota; items: IMediaItem[] }>> {
+    const response = await api.get('/media/my-space');
+    return response.data;
+  }
+
+  static async createUserUpload(mediaData: Partial<IMediaItem>): Promise<ApiResponse<IMediaItem>> {
+    const response = await api.post('/media/user-upload', mediaData);
+    return response.data;
+  }
+
+  static async deleteMyMedia(id: string): Promise<ApiResponse<{ id: string }>> {
+    const response = await api.delete(`/media/my-space/${id}`);
     return response.data;
   }
 
@@ -87,6 +104,34 @@ export class MediaService {
 
   static async getAdminStats(): Promise<ApiResponse<AdminStats>> {
     const response = await api.get('/admin/stats');
+    return response.data;
+  }
+
+  // 🛡️ Admin User Spaces & Anti-Spam Operations
+  static async getUserSpaces(): Promise<ApiResponse<UserSpaceData[]>> {
+    const response = await api.get('/admin/user-spaces');
+    return response.data;
+  }
+
+  static async updateUserQuota(userId: string, limits: { maxPhotos?: number; maxVideos?: number }): Promise<ApiResponse<any>> {
+    const response = await api.put(`/admin/user-spaces/${userId}/limits`, limits);
+    return response.data;
+  }
+
+  static async updateUserStatus(userId: string, status: 'active' | 'blocked' | 'deactivated', blockReason?: string): Promise<ApiResponse<any>> {
+    const response = await api.put(`/admin/user-spaces/${userId}/status`, { status, blockReason });
+    return response.data;
+  }
+
+  static async deleteUserMedia(mediaId: string): Promise<ApiResponse<any>> {
+    const response = await api.delete(`/admin/user-spaces/media/${mediaId}`);
+    return response.data;
+  }
+
+  static async purgeUserAccount(userId: string, adminPassword: string): Promise<ApiResponse<any>> {
+    const response = await api.delete(`/admin/user-spaces/${userId}/purge`, {
+      data: { adminPassword },
+    });
     return response.data;
   }
 }

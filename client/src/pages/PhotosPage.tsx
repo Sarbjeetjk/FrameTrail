@@ -20,8 +20,13 @@ import {
   Globe,
   HardDrive,
   CheckCircle2,
+  UploadCloud,
+  Sparkles,
 } from 'lucide-react';
-
+import { useAuth } from '../hooks/useAuth';
+import { WelcomeModal } from '../components/WelcomeModal';
+import { UploadModal } from '../components/UploadModal';
+import { IMediaItem } from '../types';
 import { recordVisitorHit } from '../utils/visitorTracker';
 
 export const PhotosPage: React.FC = () => {
@@ -35,6 +40,11 @@ export const PhotosPage: React.FC = () => {
     setSearchQuery,
     setSelectedCategory,
   } = useMedia();
+
+  const { user, isAuthenticated } = useAuth();
+  const [userUploadedItems, setUserUploadedItems] = useState<IMediaItem[]>([]);
+  const [userSpaceChecked, setUserSpaceChecked] = useState<boolean>(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
 
   // 3D Mouse Parallax Tilt State
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -59,6 +69,29 @@ export const PhotosPage: React.FC = () => {
     recordVisitorHit('Photos Showcase Gallery');
   }, []);
 
+  // Fetch logged-in user's own media uploads to power personalized showcase
+  useEffect(() => {
+    const fetchUserPersonalMedia = async () => {
+      if (isAuthenticated) {
+        try {
+          const res = await MediaService.getMySpace();
+          if (res.success && res.data) {
+            setUserUploadedItems(res.data.items || []);
+          }
+        } catch (e) {
+          // Fallback silently
+        } finally {
+          setUserSpaceChecked(true);
+        }
+      } else {
+        setUserUploadedItems([]);
+        setUserSpaceChecked(false);
+      }
+    };
+
+    fetchUserPersonalMedia();
+  }, [isAuthenticated]);
+
   // Strictly filter items to type === 'photo' for the Photos Page Hero Showcase
   const photoOnlyItems = (mediaItems || []).filter((item) => item.type === 'photo');
 
@@ -70,7 +103,7 @@ export const PhotosPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 🖼️ Combine uploaded photos with curated showcase slides so images ALWAYS auto-rotate continuously
+  // 🖼️ Combine user's own uploads (or public uploads) with curated showcase slides
   const activeSlides = React.useMemo(() => {
     const defaultSlides = [
       {
@@ -79,6 +112,7 @@ export const PhotosPage: React.FC = () => {
         category: 'New Delhi',
         likes: 245,
         id: 'default-hero-1',
+        isPersonal: false,
       },
       {
         url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
@@ -86,6 +120,7 @@ export const PhotosPage: React.FC = () => {
         category: 'Nature & Landscape',
         likes: 312,
         id: 'default-hero-2',
+        isPersonal: false,
       },
       {
         url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
@@ -93,6 +128,7 @@ export const PhotosPage: React.FC = () => {
         category: 'Digital Art',
         likes: 428,
         id: 'default-hero-3',
+        isPersonal: false,
       },
       {
         url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80',
@@ -100,6 +136,7 @@ export const PhotosPage: React.FC = () => {
         category: 'Astronomy',
         likes: 580,
         id: 'default-hero-4',
+        isPersonal: false,
       },
       {
         url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1200&q=80',
@@ -107,9 +144,23 @@ export const PhotosPage: React.FC = () => {
         category: 'Landscape',
         likes: 198,
         id: 'default-hero-5',
+        isPersonal: false,
       },
     ];
 
+    // Priority 1: If user is authenticated and has uploaded media, showcase THEIR OWN media!
+    if (isAuthenticated && userUploadedItems.length > 0) {
+      return userUploadedItems.map((item) => ({
+        url: item.url,
+        title: item.title,
+        category: item.category,
+        likes: item.likes || 0,
+        id: item._id,
+        isPersonal: true,
+      }));
+    }
+
+    // Priority 2: Public uploaded items
     if (photoOnlyItems.length === 0) return defaultSlides;
 
     const uploaded = photoOnlyItems.map((item) => ({
@@ -118,10 +169,11 @@ export const PhotosPage: React.FC = () => {
       category: item.category,
       likes: item.likes,
       id: item._id,
+      isPersonal: false,
     }));
 
     return [...uploaded, ...defaultSlides].slice(0, 5);
-  }, [photoOnlyItems]);
+  }, [isAuthenticated, userUploadedItems, photoOnlyItems]);
 
   const heroDisplayData = activeSlides[heroIndex % activeSlides.length];
 
@@ -306,52 +358,93 @@ export const PhotosPage: React.FC = () => {
               {/* Shimmer Light Sweep Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent w-1/2 -skew-x-12 animate-shimmer-sweep pointer-events-none z-20"></div>
 
-              {/* Auto-rotating Hero Image */}
-              <img
-                key={heroDisplayData.id}
-                src={heroDisplayData.url}
-                alt={heroDisplayData.title}
-                className="w-full h-[360px] sm:h-[430px] object-cover group-hover:scale-105 transition-all duration-700 opacity-95 animate-in fade-in"
-              />
-
-              {/* Cinematic Vignette */}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent"></div>
-
-              {/* Floating Top Badge */}
-              <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-extrabold text-cyan-400 border border-cyan-500/40 shadow-xl flex items-center gap-1.5 z-20">
-                <Globe className="w-4 h-4 text-cyan-400" />
-                <span>Latest Upload Showcase</span>
-              </div>
-
-              {/* Carousel Dot Indicators (5 Slides: Slide 0 is default /img5.png, Slides 1-4 are uploaded photos) */}
-              <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20 bg-slate-950/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur-md">
-                {[0, 1, 2, 3, 4].map((idx) => (
+              {/* Check if authenticated user has zero posts */}
+              {isAuthenticated && userSpaceChecked && userUploadedItems.length === 0 ? (
+                <div className="w-full h-[360px] sm:h-[430px] flex flex-col items-center justify-center p-6 sm:p-8 text-center bg-gradient-to-br from-slate-950 via-indigo-950/40 to-slate-900 relative">
+                  <div className="w-16 h-16 rounded-3xl bg-indigo-500/10 border-2 border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-3 animate-bounce shadow-xl shadow-indigo-500/10">
+                    <UploadCloud className="w-8 h-8" />
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Not Posted Any Media Yet</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-white">
+                    Start Your Personal Showcase!
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-xs mt-1 mb-5">
+                    Welcome, {user?.name}! You haven't posted any photos or videos yet. Post your first media now to feature it right here.
+                  </p>
                   <button
-                    key={idx}
-                    onClick={() => setHeroIndex(idx)}
-                    className={`h-2 rounded-full transition-all ${
-                      idx === heroIndex ? 'w-5 bg-amber-400' : 'w-2 bg-slate-600 hover:bg-slate-400'
-                    }`}
-                    title={idx === 0 ? 'Main Showcase' : `Photo Slide #${idx}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadModalOpen(true);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2 hover:scale-105 active:scale-95"
+                  >
+                    <UploadCloud className="w-4 h-4" />
+                    <span>Post Media Now (Upload Form)</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Auto-rotating Hero Image */}
+                  <img
+                    key={heroDisplayData.id}
+                    src={heroDisplayData.url}
+                    alt={heroDisplayData.title}
+                    className="w-full h-[360px] sm:h-[430px] object-cover group-hover:scale-105 transition-all duration-700 opacity-95 animate-in fade-in"
                   />
-                ))}
-              </div>
 
-              {/* Floating Bottom Live Card */}
-              <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl border border-indigo-500/40 text-white flex items-center justify-between shadow-2xl z-20">
-                <div className="space-y-0.5 max-w-[70%]">
-                  <div className="text-xs font-extrabold text-white flex items-center gap-1.5 truncate">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                    <span className="truncate">{heroDisplayData.title}</span>
+                  {/* Cinematic Vignette */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent"></div>
+
+                  {/* Floating Top Badge */}
+                  <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-extrabold text-cyan-400 border border-cyan-500/40 shadow-xl flex items-center gap-1.5 z-20">
+                    {isAuthenticated && userUploadedItems.length > 0 ? (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span className="text-amber-300">Your Latest Upload Showcase</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-4 h-4 text-cyan-400" />
+                        <span>Latest Upload Showcase</span>
+                      </>
+                    )}
                   </div>
-                  <div className="text-[11px] text-slate-400 truncate">
-                    Category: <span className="text-indigo-300 font-semibold">{heroDisplayData.category}</span>
+
+                  {/* Carousel Dot Indicators (5 Slides: Slide 0 is default /img5.png, Slides 1-4 are uploaded photos) */}
+                  <div className="absolute top-4 right-4 flex items-center gap-1.5 z-20 bg-slate-950/80 px-3 py-1.5 rounded-full border border-slate-800 backdrop-blur-md">
+                    {activeSlides.slice(0, 5).map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setHeroIndex(idx)}
+                        className={`h-2 rounded-full transition-all ${
+                          idx === heroIndex ? 'w-5 bg-amber-400' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                        }`}
+                        title={`Slide #${idx + 1}`}
+                      />
+                    ))}
                   </div>
-                </div>
-                <div className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {heroDisplayData.likes} Likes
-                </div>
-              </div>
+
+                  {/* Floating Bottom Live Card */}
+                  <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl border border-indigo-500/40 text-white flex items-center justify-between shadow-2xl z-20">
+                    <div className="space-y-0.5 max-w-[70%]">
+                      <div className="text-xs font-extrabold text-white flex items-center gap-1.5 truncate">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <span className="truncate">{heroDisplayData.title}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate">
+                        Category: <span className="text-indigo-300 font-semibold">{heroDisplayData.category}</span>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {heroDisplayData.likes} Likes
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -416,6 +509,26 @@ export const PhotosPage: React.FC = () => {
 
       {/* Pagination Controls */}
       <Pagination pagination={pagination} onPageChange={handlePageChange} />
+
+      {/* Animated Welcome Modal on Login */}
+      <WelcomeModal onOpenUpload={() => setUploadModalOpen(true)} />
+
+      {/* Upload Modal (Post Media Form Popup) */}
+      <UploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        onSuccess={() => {
+          setUploadModalOpen(false);
+          if (isAuthenticated) {
+            MediaService.getMySpace().then((res) => {
+              if (res.success && res.data) {
+                setUserUploadedItems(res.data.items || []);
+              }
+            });
+          }
+          fetchMedia({ page: 1, type: 'photo' });
+        }}
+      />
     </div>
   );
 };

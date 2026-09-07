@@ -16,9 +16,11 @@ import {
   X,
   MessageSquare,
   User,
+  HardDrive,
 } from 'lucide-react';
 import { Logo3D } from './Logo3D';
 import { UploadModal } from './UploadModal';
+import { UserAvatar } from './UserAvatar';
 
 export const Navbar: React.FC = () => {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -104,6 +106,20 @@ export const Navbar: React.FC = () => {
 
           {/* Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 font-medium text-sm">
+            {isAuthenticated && (
+              <Link
+                to="/my-space"
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all ${
+                  isActive('/my-space')
+                    ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <HardDrive className="w-4 h-4 text-indigo-600" />
+                <span>My Space</span>
+              </Link>
+            )}
+
             {!isAdmin && (
               <Link
                 to="/contact"
@@ -135,24 +151,20 @@ export const Navbar: React.FC = () => {
 
           {/* User Controls */}
           <div className="hidden lg:flex items-center gap-3">
-            {isAdmin && (
+            {isAuthenticated && (
               <button
                 onClick={() => setUploadModalOpen(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-xs shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30 hover:opacity-95 transition-all"
               >
                 <UploadCloud className="w-4 h-4" />
-                <span>Upload Asset</span>
+                <span>{isAdmin ? 'Upload Asset' : 'Upload to Space'}</span>
               </button>
             )}
 
             {isAuthenticated ? (
               <div className="flex items-center gap-3 pl-2 border-l border-slate-200">
                 <Link to="/profile" className="flex items-center gap-2 group cursor-pointer hover:opacity-90 transition-opacity" title="View & Edit Profile">
-                  <img
-                    src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}
-                    alt={user?.name}
-                    className="w-8 h-8 rounded-full border border-indigo-300 object-cover shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform"
-                  />
+                  <UserAvatar name={user?.name} avatar={user?.avatar} size="sm" className="group-hover:scale-105 transition-transform" />
                   <div className="text-xs">
                     <div className="font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors whitespace-nowrap">{user?.name}</div>
                     <div className="text-indigo-600 font-medium capitalize text-[10px]">{user?.role}</div>
@@ -169,7 +181,7 @@ export const Navbar: React.FC = () => {
             ) : (
               <div className="flex items-center gap-2">
                 <Link
-                  to="/login"
+                  to="/user-login"
                   className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
@@ -210,6 +222,17 @@ export const Navbar: React.FC = () => {
             </form>
 
             <nav className="flex flex-col space-y-1 pt-2">
+              {isAuthenticated && (
+                <Link
+                  to="/my-space"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-bold"
+                >
+                  <HardDrive className="w-4 h-4 text-indigo-600" />
+                  <span>My Space</span>
+                </Link>
+              )}
+
               {!isAdmin && (
                 <Link
                   to="/contact"
@@ -241,17 +264,12 @@ export const Navbar: React.FC = () => {
                     className="flex items-center gap-2.5 p-1 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                     title="Open Profile Settings"
                   >
-                    <img
-                      src={user?.avatar}
-                      alt={user?.name}
-                      className="w-9 h-9 rounded-full border border-indigo-400 object-cover"
-                    />
+                    <UserAvatar name={user?.name} avatar={user?.avatar} size="sm" />
                     <div>
                       <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1">
                         <span>{user?.name}</span>
-                        <User className="w-3 h-3 text-indigo-600" />
                       </div>
-                      <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">
+                      <div className="text-[10px] text-indigo-600 font-semibold">
                         Edit Profile ({user?.role})
                       </div>
                     </div>
@@ -269,7 +287,7 @@ export const Navbar: React.FC = () => {
               ) : (
                 <div className="flex items-center gap-3 w-full">
                   <Link
-                    to="/login"
+                    to="/user-login"
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex-1 text-center py-2 text-xs font-semibold bg-slate-100 text-slate-700 rounded-xl"
                   >
@@ -289,7 +307,7 @@ export const Navbar: React.FC = () => {
         )}
       </header>
 
-      {isAdmin && uploadModalOpen && (
+      {uploadModalOpen && (
         <UploadModal isOpen={uploadModalOpen} onClose={() => setUploadModalOpen(false)} />
       )}
     </>

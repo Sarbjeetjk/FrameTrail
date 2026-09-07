@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { Media, MediaType } from '../models/Media';
 import { HiddenCategory } from '../models/HiddenCategory';
+import { User } from '../models/User';
 import { sendResponse, sendError } from '../utils/response';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
 function escapeRegex(str: string) {
@@ -11,8 +13,9 @@ function escapeRegex(str: string) {
 export class MediaController {
   /**
    * Get paginated media items with advanced search & filters (hides deleted, hidden items & hidden categories)
+   * Ensures private uploads of other users are not exposed publicly.
    */
-  static async getMedia(req: Request, res: Response) {
+  static async getMedia(req: AuthenticatedRequest, res: Response) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 24;
@@ -23,6 +26,7 @@ export class MediaController {
       const sortBy = (req.query.sortBy as string) || 'createdAt';
       const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
       const featured = req.query.featured === 'true';
+      const mySpaceOnly = req.query.mySpace === 'true';
 
       // Fetch all hidden categories from MongoDB Atlas
       const hiddenCats = await HiddenCategory.find();
@@ -35,6 +39,25 @@ export class MediaController {
 
       if (hiddenCatNames.length > 0) {
         filter.category = { $nin: hiddenCatNames };
+      }
+
+      // 🔒 Privacy Isolation:
+      // Regular users' private uploads must NOT be visible to others.
+      if (mySpaceOnly && req.user) {
+        // Only this user's uploads
+        filter.uploadedBy = req.user.id;
+      } else {
+        // Public browsing: Only admin/system uploads (uploadedBy null or admin) OR this logged-in user's uploads
+        const regularUsers = await User.find({ role: 'user' }).select('_id');
+        const regularUserIds = regularUsers.map((u) => u._id.toString());
+        
+        // Exclude other regular users' uploads
+        const currentUserId = req.user ? req.user.id : null;
+        const otherUserIds = regularUserIds.filter((id) => id !== currentUserId);
+
+        if (otherUserIds.length > 0) {
+          filter.uploadedBy = { $nin: otherUserIds };
+        }
       }
 
       // Apply type filter only if user explicitly selects type without search query
@@ -203,6 +226,162 @@ export class MediaController {
       return sendResponse(res, 200, true, 'Categories fetched', categories);
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error fetching categories');
+    }
+  }
+
+  /**
+   * User: Upload media to personal space with strict quota check (100 Photos, 10 Videos default)
+   */
+  static async createUserUpload(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'Unauthorized');
+      }
+
+      const { title, description, type, url, r2Key, category, tags, metadata } = req.body;
+
+      if (!title || !type || !url) {
+        return sendError(res, 400, 'Title, type, and URL are required');
+      }
+
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return sendError(res, 404, 'User not found');
+      }
+
+      // Check quota limits for regular users
+      if (user.role !== 'admin') {
+        const maxPhotos = user.uploadLimits?.maxPhotos ?? 100;
+        const maxVideos = user.uploadLimits?.maxVideos ?? 10;
+
+        if (type === 'photo') {
+          const currentPhotos = await Media.countDocuments({
+            uploadedBy: req.user.id,
+            type: 'photo',
+            isDeleted: { $ne: true },
+          });
+
+          if (currentPhotos >= maxPhotos) {
+            return sendError(
+              res,
+              400,
+              `Photo upload limit reached! You have uploaded ${currentPhotos} / ${maxPhotos} photos. Please delete existing photos or contact Admin to increase your limit.`
+            );
+          }
+        } else if (type === 'video' || type === 'movie') {
+          const currentVideos = await Media.countDocuments({
+            uploadedBy: req.user.id,
+            type: { $in: ['video', 'movie'] },
+            isDeleted: { $ne: true },
+          });
+
+          if (currentVideos >= maxVideos) {
+            return sendError(
+              res,
+              400,
+              `Video upload limit reached! You have uploaded ${currentVideos} / ${maxVideos} videos. Please delete existing videos or contact Admin to increase your limit.`
+            );
+          }
+        }
+      }
+
+      const media = await Media.create({
+        title,
+        description: description || '',
+        type,
+        url,
+        r2Key: r2Key || '',
+        category: category || 'Personal',
+        tags: Array.isArray(tags) ? tags : [],
+        metadata: metadata || {},
+        isFeatured: false,
+        uploadedBy: req.user.id,
+      });
+
+      return sendResponse(res, 201, true, 'Media uploaded to your personal space successfully', media);
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Error creating user upload');
+    }
+  }
+
+  /**
+   * User: Get personal space overview & quota usage
+   */
+  static async getMySpace(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'Unauthorized');
+      }
+
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return sendError(res, 404, 'User not found');
+      }
+
+      const isAdmin = user.role === 'admin';
+      const maxPhotos = isAdmin ? 999999 : (user.uploadLimits?.maxPhotos ?? 100);
+      const maxVideos = isAdmin ? 999999 : (user.uploadLimits?.maxVideos ?? 10);
+
+      const [usedPhotos, usedVideos, userItems] = await Promise.all([
+        Media.countDocuments({
+          uploadedBy: req.user.id,
+          type: 'photo',
+          isDeleted: { $ne: true },
+        }),
+        Media.countDocuments({
+          uploadedBy: req.user.id,
+          type: { $in: ['video', 'movie'] },
+          isDeleted: { $ne: true },
+        }),
+        Media.find({
+          uploadedBy: req.user.id,
+          isDeleted: { $ne: true },
+        }).sort({ createdAt: -1 }),
+      ]);
+
+      return sendResponse(res, 200, true, 'Personal space retrieved', {
+        quota: {
+          isAdmin,
+          isUnlimited: isAdmin,
+          maxPhotos,
+          usedPhotos,
+          maxVideos,
+          usedVideos,
+          availablePhotos: isAdmin ? 999999 : Math.max(0, maxPhotos - usedPhotos),
+          availableVideos: isAdmin ? 999999 : Math.max(0, maxVideos - usedVideos),
+        },
+        items: userItems,
+      });
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Error retrieving personal space');
+    }
+  }
+
+  /**
+   * User: Delete own media item (frees up quota)
+   */
+  static async deleteMyMedia(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'Unauthorized');
+      }
+
+      const { id } = req.params;
+      const media = await Media.findOne({
+        _id: id,
+        uploadedBy: req.user.id,
+      });
+
+      if (!media) {
+        return sendError(res, 404, 'Media item not found or you do not have permission to delete it');
+      }
+
+      media.isDeleted = true;
+      await media.save();
+
+      return sendResponse(res, 200, true, 'Media removed from personal space successfully', { id });
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Error deleting personal media');
     }
   }
 }

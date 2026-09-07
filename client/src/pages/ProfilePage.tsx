@@ -19,7 +19,13 @@ export const ProfilePage: React.FC = () => {
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [username, setUsername] = useState(user?.name ? `@${user.name.toLowerCase().replace(/\s+/g, '')}` : '@user');
-  const [avatar, setAvatar] = useState(user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80');
+  // User profile picture: only use real custom photo, never Unsplash placeholder
+  const rawAvatar = user?.avatar || '';
+  const initialAvatar =
+    rawAvatar.includes('photo-1534528741775-53994a69daeb') || rawAvatar.includes('unsplash.com')
+      ? ''
+      : rawAvatar;
+  const [avatar, setAvatar] = useState(initialAvatar);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
@@ -61,7 +67,7 @@ export const ProfilePage: React.FC = () => {
           setAvatar(reader.result as string);
           setNotice({
             type: 'success',
-            message: 'New avatar image selected! Click "Save Profile Changes" to save.',
+            message: 'New avatar image selected! Click "Save Profile Changes" below to apply.',
           });
         }
       };
@@ -189,15 +195,62 @@ export const ProfilePage: React.FC = () => {
         
         {/* Left Column: Avatar & Account Badge Card */}
         <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-center space-y-6">
-          <label htmlFor="avatar-file-input" className="cursor-pointer block">
-            <div className="relative w-28 h-28 mx-auto rounded-3xl overflow-hidden border-2 border-indigo-500/40 shadow-xl group">
-              <img src={avatar} alt={name} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white space-y-1">
-                <Camera className="w-6 h-6 text-indigo-300" />
-                <span className="text-[10px] font-bold">Upload (Max 2MB)</span>
+          {/* Avatar Preview Card */}
+          <div className="space-y-3">
+            <label htmlFor="avatar-file-input" className="cursor-pointer block">
+              <div className="relative w-28 h-28 mx-auto rounded-3xl overflow-hidden border-2 border-indigo-500/40 shadow-xl group">
+                {avatar ? (
+                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 text-white font-black text-4xl flex items-center justify-center select-none shadow-inner">
+                    <span>{(name || 'U')[0].toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white space-y-1">
+                  <Camera className="w-6 h-6 text-indigo-300" />
+                  <span className="text-[10px] font-bold">
+                    {avatar ? 'Change Photo' : 'Upload Photo'}
+                  </span>
+                </div>
               </div>
+            </label>
+
+            {/* Hidden File Input for Avatar */}
+            <input
+              id="avatar-file-input"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarFileChange}
+            />
+
+            <div className="flex items-center justify-center gap-2">
+              <label
+                htmlFor="avatar-file-input"
+                className="cursor-pointer px-3 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-[11px] font-bold transition-colors inline-flex items-center gap-1"
+              >
+                <Camera className="w-3 h-3" />
+                <span>{avatar ? 'Upload New' : 'Upload Photo'}</span>
+              </label>
+
+              {avatar && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatar('');
+                    setNotice({
+                      type: 'success',
+                      message: 'Profile photo cleared! User Font Avatar will be used. Click Save Profile Changes to confirm.',
+                    });
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-bold transition-colors"
+                  title="Remove photo and use font initial avatar"
+                >
+                  Reset to Font
+                </button>
+              )}
             </div>
-          </label>
+          </div>
 
           <div className="space-y-1">
             <h3 className="font-bold text-xl text-white">{name}</h3>

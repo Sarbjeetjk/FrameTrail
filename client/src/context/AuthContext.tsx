@@ -10,11 +10,11 @@ interface AuthContextType {
   isServerOnline: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, otp: string, role?: string) => Promise<void>;
   logout: () => void;
   checkServerHealth: () => Promise<boolean>;
   updateProfile: (data: { name?: string; email?: string; avatar?: string; password?: string }) => Promise<void>;
-  resetPassword: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string, password: string, otp?: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,8 +83,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (name: string, email: string, password: string, role?: string) => {
-    const res = await AuthService.register(name, email, password, role);
+  const register = async (name: string, email: string, password: string, otp: string, role?: string) => {
+    const res = await AuthService.register(name, email, password, otp, role);
     if (res.success && res.data) {
       setUser(res.data.user);
       setToken(res.data.token);
@@ -106,8 +106,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const resetPassword = async (email: string, password: string) => {
-    const res = await AuthService.resetPassword(email, password);
+  const resetPassword = async (email: string, password: string, otp?: string) => {
+    const res = await AuthService.resetPassword(email, password, otp);
     if (!res.success) {
       throw new Error(res.message || 'Failed to reset password');
     }

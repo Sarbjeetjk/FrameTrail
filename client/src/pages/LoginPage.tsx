@@ -47,7 +47,8 @@ export const LoginPage: React.FC = () => {
         user: savedUser.name || email,
         level: 'info',
       });
-      navigate('/');
+      sessionStorage.setItem('frametrail_just_logged_in', 'true');
+      navigate('/my-space');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');
     } finally {
@@ -66,7 +67,7 @@ export const LoginPage: React.FC = () => {
 
     setSendingOtp(true);
     try {
-      const res = await api.post('/auth/send-otp', { email: resetEmail.trim(), name: 'FrameTrail User' });
+      await api.post('/auth/send-otp', { email: resetEmail.trim(), name: 'FrameTrail User', purpose: 'forgot_password' });
       setError(null);
       setResetCodeSent(true);
     } catch (err: any) {
@@ -90,10 +91,10 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       // First verify OTP with backend
-      await api.post('/auth/verify-otp', { email: resetEmail.trim(), otp: resetOtp.trim() });
+      await api.post('/auth/verify-otp', { email: resetEmail.trim(), otp: resetOtp.trim(), purpose: 'forgot_password' });
       
       // Reset Password in MongoDB Atlas
-      await resetPassword(resetEmail, newPassword);
+      await resetPassword(resetEmail, newPassword, resetOtp.trim());
       setResetSuccess(true);
       setEmail(resetEmail);
       setPassword(newPassword);
@@ -127,10 +128,12 @@ export const LoginPage: React.FC = () => {
             />
           </div>
           <h1 className="font-display text-2xl font-bold text-slate-900">
-            {isForgotPassword ? 'Reset Your Password' : 'Welcome Back to FrameTrail'}
+            {isForgotPassword ? 'Reset Your Password' : 'User & Member Login'}
           </h1>
           <p className="text-xs text-slate-500 font-medium">
-            {isForgotPassword ? 'Follow the steps to recover access to your account' : 'Sign in to access your media vault and management tools'}
+            {isForgotPassword
+              ? 'Follow the steps to recover access to your account'
+              : 'Sign in to access your personal storage vault & uploaded assets'}
           </p>
         </div>
 
@@ -294,11 +297,18 @@ export const LoginPage: React.FC = () => {
           </>
         )}
 
-        <div className="text-center text-xs text-slate-500 font-medium">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-indigo-600 font-bold hover:underline">
-            Register Account
-          </Link>
+        <div className="space-y-2 text-center text-xs text-slate-500 font-medium pt-2 border-t border-slate-100">
+          <div>
+            Don't have an account?{' '}
+            <Link to="/register" className="text-indigo-600 font-bold hover:underline">
+              Register Account
+            </Link>
+          </div>
+          <div className="pt-1">
+            <Link to="/admin-login" className="text-slate-400 hover:text-indigo-600 transition-colors font-medium">
+              Administrator? Access Admin Portal &rarr;
+            </Link>
+          </div>
         </div>
       </div>
     </div>

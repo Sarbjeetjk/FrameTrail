@@ -7,8 +7,18 @@ export class AuthService {
     return response.data;
   }
 
-  static async register(name: string, email: string, password: string, role?: string): Promise<ApiResponse<{ user: IUser; token: string }>> {
-    const response = await api.post('/auth/register', { name, email, password, role });
+  static async sendOtp(email: string, purpose: 'register' | 'forgot_password' | 'profile_update' = 'register', name?: string): Promise<ApiResponse<null>> {
+    const response = await api.post('/auth/send-otp', { email, purpose, name });
+    return response.data;
+  }
+
+  static async verifyOtp(email: string, otp: string, purpose?: 'register' | 'forgot_password' | 'profile_update'): Promise<ApiResponse<null>> {
+    const response = await api.post('/auth/verify-otp', { email, otp, purpose });
+    return response.data;
+  }
+
+  static async register(name: string, email: string, password: string, otp: string, role?: string): Promise<ApiResponse<{ user: IUser; token: string }>> {
+    const response = await api.post('/auth/register', { name, email, password, otp, role });
     return response.data;
   }
 
@@ -22,8 +32,8 @@ export class AuthService {
     return response.data;
   }
 
-  static async resetPassword(email: string, password: string): Promise<ApiResponse<null>> {
-    const response = await api.post('/auth/reset-password', { email, password });
+  static async resetPassword(email: string, password: string, otp?: string): Promise<ApiResponse<null>> {
+    const response = await api.post('/auth/reset-password', { email, password, otp });
     return response.data;
   }
 }

@@ -5,6 +5,7 @@ if (dns.setDefaultResultOrder) {
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { env } from './config/env';
 import { connectDB } from './config/db';
 import routes from './routes';
@@ -12,6 +13,14 @@ import { errorHandler, notFoundHandler } from './middleware/errorMiddleware';
 import { apiLimiter } from './middleware/rateLimiter';
 
 const app = express();
+
+// Security HTTP Headers (Clickjacking, MIME Sniffing, HSTS protection)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false,
+  })
+);
 
 // Middlewares
 app.use(cors());

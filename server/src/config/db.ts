@@ -8,7 +8,7 @@ export const connectDB = async (): Promise<void> => {
     });
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}`);
   } catch (error: any) {
-    console.warn(`[Database Warning] Could not connect to primary MongoDB at ${env.MONGODB_URI}: ${error.message}`);
+    console.warn(`[Database Warning] Could not connect to primary MongoDB: ${error.message}`);
     console.log('[Database] Falling back to Memory/Mock Store mode if MongoDB is not running locally.');
   }
 };

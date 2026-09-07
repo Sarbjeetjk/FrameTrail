@@ -40,6 +40,37 @@ export interface IUser {
   email: string;
   role: 'admin' | 'user';
   avatar?: string;
+  uploadLimits?: {
+    maxPhotos: number;
+    maxVideos: number;
+  };
+  status?: 'active' | 'blocked' | 'deactivated';
+  blockReason?: string;
+  createdAt?: string;
+}
+
+export interface UserSpaceQuota {
+  isUnlimited?: boolean;
+  maxPhotos: number;
+  usedPhotos: number;
+  maxVideos: number;
+  usedVideos: number;
+  availablePhotos: number;
+  availableVideos: number;
+}
+
+export interface UserSpaceData {
+  user: IUser;
+  stats: {
+    isUnlimited?: boolean;
+    photoCount: number;
+    videoCount: number;
+    maxPhotos: number;
+    maxVideos: number;
+    totalItems: number;
+    lastUploadAt?: string | null;
+  };
+  items: IMediaItem[];
 }
 
 export interface IPagination {

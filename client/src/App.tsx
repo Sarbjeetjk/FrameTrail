@@ -15,6 +15,8 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { MediaDetailPage } from './pages/MediaDetailPage';
 import { ContactUsPage } from './pages/ContactUsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { MySpacePage } from './pages/MySpacePage';
+import { WelcomeModal } from './components/WelcomeModal';
 
 export const App: React.FC = () => {
   return (
@@ -23,6 +25,7 @@ export const App: React.FC = () => {
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <IntroLoader />
           <div className="flex flex-col min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
+            <WelcomeModal />
             <Navbar />
             <main className="flex-1">
               <Routes>
@@ -32,8 +35,10 @@ export const App: React.FC = () => {
                 <Route path="/movies" element={<MoviesPage />} />
                 <Route path="/contact" element={<ContactUsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/my-space" element={<MySpacePage />} />
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin-login" element={<AdminLoginPage />} />
+                <Route path="/user-login" element={<LoginPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/media/:id" element={<MediaDetailPage />} />

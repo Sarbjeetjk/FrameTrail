@@ -31,10 +31,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Do NOT clear token if error is just an incorrect password check in verify-password
+    if (error.response) {
+      const status = error.response.status;
+      const errMsg = error.response.data?.message || '';
       const requestUrl = error.config?.url || '';
-      if (!requestUrl.includes('/auth/verify-password')) {
+
+      if (
+        (status === 401 && !requestUrl.includes('/auth/verify-password')) ||
+        (status === 403 && (errMsg.includes('Account Blocked') || errMsg.includes('Account Deactivated') || errMsg.includes('permanently suspended')))
+      ) {
         localStorage.removeItem('frametrail_token');
         localStorage.removeItem('frametrail_user');
       }

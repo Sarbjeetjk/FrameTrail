@@ -3,6 +3,7 @@ import { X, UploadCloud, CheckCircle2, AlertCircle, Film, Camera, Video, Link as
 import { usePresignedUpload } from '../hooks/usePresignedUpload';
 import { MediaService } from '../services/mediaService';
 import { useMedia } from '../hooks/useMedia';
+import { useAuth } from '../hooks/useAuth';
 import { MediaType } from '../types';
 import api from '../services/api';
 import { getVideoPlayerInfo } from '../utils/videoUtils';
@@ -126,6 +127,7 @@ const movieTagList = [
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { uploadFile, uploading, progress, error: r2Error, resetUploadState } = usePresignedUpload();
   const { fetchMedia } = useMedia();
+  const { isAdmin } = useAuth();
 
   // Mode Selection: 'file' (Local Batch File Upload) vs 'url' (Direct Link / YouTube Link)
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
@@ -477,7 +479,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
             }
           }
 
-          await MediaService.createMedia({
+          const createFn = isAdmin ? MediaService.createMedia : MediaService.createUserUpload;
+          await createFn({
             title: item.title.trim(),
             description: item.description.trim(),
             type,
@@ -557,7 +560,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
             throw new Error(`Cloudinary upload failed for file: ${item.file.name}`);
           }
 
-          await MediaService.createMedia({
+          const createFn = isAdmin ? MediaService.createMedia : MediaService.createUserUpload;
+          await createFn({
             title: item.title || item.file.name,
             description: item.description,
             type,

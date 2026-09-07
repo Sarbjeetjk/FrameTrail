@@ -9,7 +9,6 @@ import {
   MessageSquare,
   UploadCloud,
   User,
-  Sparkles,
   ShieldCheck,
   PlusCircle,
   BarChart3,
@@ -142,6 +141,24 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 </div>
                 <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-black">
                   ROLES
+                </span>
+              </button>
+
+              {/* 🌟 User Spaces & Storage Quotas Tab */}
+              <button
+                onClick={() => setActiveTab('user-spaces')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+                  activeTab === 'user-spaces'
+                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-600/30 border border-indigo-500'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <HardDrive className={`w-4 h-4 ${activeTab === 'user-spaces' ? 'text-white' : 'text-violet-400'}`} />
+                  <span>User Spaces & Quotas</span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[9px] font-black">
+                  SPACES
                 </span>
               </button>
 

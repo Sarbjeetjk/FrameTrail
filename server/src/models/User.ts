@@ -7,6 +7,12 @@ export interface IUser extends Document {
   password?: string;
   role: 'admin' | 'user';
   avatar?: string;
+  uploadLimits: {
+    maxPhotos: number;
+    maxVideos: number;
+  };
+  status: 'active' | 'blocked' | 'deactivated';
+  blockReason?: string;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -39,7 +45,27 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     avatar: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      default: '',
+    },
+    uploadLimits: {
+      maxPhotos: {
+        type: Number,
+        default: 100,
+      },
+      maxVideos: {
+        type: Number,
+        default: 10,
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'blocked', 'deactivated'],
+      default: 'active',
+      index: true,
+    },
+    blockReason: {
+      type: String,
+      default: '',
     },
   },
   {

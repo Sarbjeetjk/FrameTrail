@@ -89,10 +89,10 @@ export const AdminLoginPage: React.FC = () => {
     setForgotLoading(true);
 
     try {
-      await api.post('/auth/send-otp', { email: forgotEmail.trim(), name: 'FrameTrail Admin' });
+      await api.post('/auth/send-otp', { email: forgotEmail.trim(), name: 'FrameTrail Admin', purpose: 'forgot_password' });
       setForgotNotice({
         type: 'success',
-        message: `Real 6-digit OTP code dispatched to ${forgotEmail}! Please check your Gmail Inbox.`,
+        message: `Real 6-digit OTP code dispatched to ${forgotEmail}! Please check your Inbox.`,
       });
       setForgotStep(2);
     } catch (err: any) {
@@ -123,10 +123,10 @@ export const AdminLoginPage: React.FC = () => {
     setForgotLoading(true);
     try {
       // First verify 6-digit OTP
-      await api.post('/auth/verify-otp', { email: forgotEmail.trim(), otp: otpCode.trim() });
+      await api.post('/auth/verify-otp', { email: forgotEmail.trim(), otp: otpCode.trim(), purpose: 'forgot_password' });
       
       // Reset Password in MongoDB Atlas
-      await api.post('/auth/reset-password', { email: forgotEmail.trim(), password: newPassword });
+      await api.post('/auth/reset-password', { email: forgotEmail.trim(), password: newPassword, otp: otpCode.trim() });
 
       setForgotNotice({
         type: 'success',

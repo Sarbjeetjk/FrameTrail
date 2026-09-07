@@ -10,6 +10,7 @@ import { AdminSidebar } from '../components/AdminSidebar';
 import { SystemActivityLogs } from '../components/admin/SystemActivityLogs';
 import { AnalyticsSection } from '../components/admin/AnalyticsSection';
 import { UserManagementSection } from '../components/admin/UserManagementSection';
+import { UserSpacesSection } from '../components/admin/UserSpacesSection';
 import { ContactMessagesSection } from '../components/admin/ContactMessagesSection';
 import { StorageHealthSection } from '../components/admin/StorageHealthSection';
 import { LogDetailsModal } from '../components/admin/LogDetailsModal';
@@ -44,7 +45,6 @@ import {
   Activity,
   Shield,
   Award,
-  Sparkles,
   MapPin,
   Globe,
   Laptop,
@@ -72,7 +72,7 @@ export const AdminDashboard: React.FC = () => {
   const [adminMediaList, setAdminMediaList] = useState<IMediaItem[]>([]);
   const [hiddenMediaList, setHiddenMediaList] = useState<IMediaItem[]>([]);
   const [hiddenCategoriesList, setHiddenCategoriesList] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<MediaType | 'all' | 'trash' | 'hidden' | 'messages' | 'analytics' | 'users' | 'logs' | 'health'>('all');
+  const [activeTab, setActiveTab] = useState<MediaType | 'all' | 'trash' | 'hidden' | 'messages' | 'analytics' | 'users' | 'user-spaces' | 'logs' | 'health'>('all');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -1205,6 +1205,8 @@ export const AdminDashboard: React.FC = () => {
             registeredUsers={registeredUsers}
             onManageRole={(userName) => setNotice(`Privileges verified for account ${userName}`)}
           />
+        ) : activeTab === 'user-spaces' ? (
+          <UserSpacesSection />
         ) : activeTab === 'logs' ? (
           <SystemActivityLogs
             systemLogs={systemLogs}
