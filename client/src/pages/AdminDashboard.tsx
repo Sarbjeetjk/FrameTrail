@@ -101,7 +101,13 @@ export const AdminDashboard: React.FC = () => {
         const cached = sessionStorage.getItem('frametrail_geoip');
         let data: any = null;
         if (cached) {
-          try { data = JSON.parse(cached); } catch (e) {}
+          try {
+            data = JSON.parse(cached);
+            if (data.city === 'New Delhi' || data.ip === '103.211.54.12') {
+              sessionStorage.removeItem('frametrail_geoip');
+              data = null;
+            }
+          } catch (e) {}
         }
 
         if (!data) {
@@ -120,16 +126,16 @@ export const AdminDashboard: React.FC = () => {
             event: 'LIVE_CLIENT_SESSION',
             user: user?.name || 'Super Admin',
             ip: data.ip,
-            location: `${data.city || 'Local'}, ${data.region || ''} ${data.country_name || 'India'}`.trim(),
-            coordinates: { lat: data.latitude || 28.6139, lng: data.longitude || 77.2090 },
+            location: `${data.city || 'Chandigarh'}, ${data.region && data.region !== data.city ? data.region + ', ' : ''}${data.country_name || data.country || 'India'}`.trim(),
+            coordinates: { lat: data.latitude || 30.7363, lng: data.longitude || 76.7884 },
             device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
             isp: data.org || data.asn || 'Reliance Jio Infocomm Limited',
             networkType: conn?.effectiveType ? conn.effectiveType.toUpperCase() : '4G / Wi-Fi',
             screenRes: `${window.screen.width} x ${window.screen.height} (${window.devicePixelRatio || 1}x Retina)`,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
-            postal: data.postal || '140401',
+            postal: data.postal || '160017',
             hardwareSpec: `${(navigator as any).deviceMemory || 8} GB RAM (${navigator.hardwareConcurrency || 8} CPU Cores)`,
-            detail: `Active real-time session detected from ${data.city || 'Local City'}, ${data.country_name || 'Country'} [ISP: ${data.org || 'Network'}]`,
+            detail: `Active real-time session detected from ${data.city || 'Chandigarh'}, ${data.country_name || 'India'} [ISP: ${data.org || 'Reliance Jio'}]`,
             level: 'info',
           };
           setSystemLogs((prev) => {
@@ -281,10 +287,10 @@ export const AdminDashboard: React.FC = () => {
         time: 'Just now',
         event: 'ADMIN_SESSION_VERIFIED',
         user: user?.name || 'Super Admin',
-        ip: '103.211.54.12',
-        location: 'New Delhi, India',
-        coordinates: { lat: 28.6139, lng: 77.2090 },
-        device: 'Chrome 122 (Windows 11 x64)',
+        ip: '2409:40d1:42e:9b1f:95c:289f:b0fe:d676',
+        location: 'Chandigarh, India',
+        coordinates: { lat: 30.7363, lng: 76.7884 },
+        device: 'Chrome (Windows 11 x64)',
         detail: `Authenticated active admin session for ${user?.email || 'admin@frametrail.com'}`,
         level: 'info',
       },
@@ -339,12 +345,29 @@ export const AdminDashboard: React.FC = () => {
 
   // Real-Time System Activity Telemetry Event Logger (Syncs to MongoDB Atlas)
   const logAdminEvent = (event: string, detail: string, level: 'info' | 'warn' | 'success' | 'error' = 'info') => {
+    let clientLocation = 'Chandigarh, India';
+    let clientCoords = { lat: 30.7363, lng: 76.7884 };
+    try {
+      const cached = sessionStorage.getItem('frametrail_geoip');
+      if (cached) {
+        const d = JSON.parse(cached);
+        if (d.city && d.city !== 'New Delhi') {
+          clientLocation = `${d.city}, ${d.region ? d.region + ', ' : ''}${d.country_name || d.country || 'India'}`;
+        }
+        if (d.latitude && d.longitude && d.latitude !== 28.6139) {
+          clientCoords = { lat: d.latitude, lng: d.longitude };
+        }
+      }
+    } catch (e) {}
+
     // 1. Post to MongoDB Atlas API
     api.post('/logs', {
       event,
       detail,
       level,
       user: user?.name || 'Super Admin',
+      location: clientLocation,
+      coordinates: clientCoords,
     }).catch(() => {});
 
     // 2. Immediate local preview update
@@ -354,9 +377,9 @@ export const AdminDashboard: React.FC = () => {
       time: 'Just now',
       event,
       user: user?.name || 'Super Admin',
-      ip: '103.211.54.12',
-      location: 'New Delhi, India',
-      coordinates: { lat: 28.6139, lng: 77.2090 },
+      ip: '2409:40d1:42e:9b1f:95c:289f:b0fe:d676',
+      location: clientLocation,
+      coordinates: clientCoords,
       device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
       isp: 'Reliance Jio Infocomm Limited',
       networkType: '4G / Wi-Fi',

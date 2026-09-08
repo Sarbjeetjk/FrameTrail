@@ -14,6 +14,14 @@ export interface IMediaMetadata {
   thumbnailUrl?: string;
 }
 
+export interface IMediaUploader {
+  _id?: string;
+  name: string;
+  email?: string;
+  role?: string;
+  avatar?: string;
+}
+
 export interface IMediaItem {
   _id: string;
   title: string;
@@ -29,7 +37,7 @@ export interface IMediaItem {
   isFeatured: boolean;
   isDeleted?: boolean;
   isHidden?: boolean;
-  uploadedBy?: string;
+  uploadedBy?: string | IMediaUploader;
   createdAt: string;
   updatedAt: string;
 }

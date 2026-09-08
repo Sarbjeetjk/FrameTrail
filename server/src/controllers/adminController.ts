@@ -9,6 +9,44 @@ import { ActivityLog } from '../models/ActivityLog';
 import { recordActivityLog, backfillHistoricalLogs } from '../utils/activityLogger';
 import mongoose from 'mongoose';
 
+async function enrichMediaWithUser(items: any[]) {
+  if (!items || items.length === 0) return items;
+
+  const userIds = Array.from(
+    new Set(
+      items
+        .map((i) => (typeof i.uploadedBy === 'object' && i.uploadedBy ? i.uploadedBy._id || i.uploadedBy.id : i.uploadedBy))
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(id.toString()))
+        .map((id) => id.toString())
+    )
+  );
+
+  let userMap = new Map<string, any>();
+  if (userIds.length > 0) {
+    const users = await User.find({ _id: { $in: userIds } }).select('_id name email role avatar').lean();
+    users.forEach((u) => {
+      userMap.set(u._id.toString(), {
+        _id: u._id.toString(),
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        avatar: u.avatar,
+      });
+    });
+  }
+
+  return items.map((item) => {
+    const itemObj = item.toObject ? item.toObject() : { ...item };
+    const rawId = typeof itemObj.uploadedBy === 'object' && itemObj.uploadedBy ? (itemObj.uploadedBy._id || itemObj.uploadedBy.id)?.toString() : itemObj.uploadedBy?.toString();
+    if (rawId && userMap.has(rawId)) {
+      itemObj.uploadedBy = userMap.get(rawId);
+    } else if (!itemObj.uploadedBy) {
+      itemObj.uploadedBy = { name: 'Admin / System', role: 'admin' };
+    }
+    return itemObj;
+  });
+}
+
 export class AdminController {
   /**
    * Admin: Create a new media item (after presigned R2 upload completes or direct URL)
@@ -31,6 +69,8 @@ export class AdminController {
         return sendError(res, 400, 'Title, type, and URL are required');
       }
 
+      const authUser = (req as AuthenticatedRequest).user;
+
       const media = await Media.create({
         title,
         description: description || '',
@@ -41,6 +81,7 @@ export class AdminController {
         tags: Array.isArray(tags) ? tags : [],
         metadata: metadata || {},
         isFeatured: Boolean(isFeatured),
+        uploadedBy: authUser?.id,
       });
 
       // 📝 Record Centralized System Activity Audit Log in MongoDB
@@ -267,8 +308,10 @@ export class AdminController {
         HiddenCategory.find().sort({ createdAt: -1 }),
       ]);
 
+      const enrichedHiddenItems = await enrichMediaWithUser(hiddenItems);
+
       return sendResponse(res, 200, true, 'Hidden assets & categories retrieved', {
-        hiddenItems,
+        hiddenItems: enrichedHiddenItems,
         hiddenCategories: hiddenCategories.map((hc) => hc.name),
       });
     } catch (error: any) {
@@ -282,7 +325,8 @@ export class AdminController {
   static async getTrashedMedia(req: Request, res: Response) {
     try {
       const trashedItems = await Media.find({ isDeleted: true }).sort({ updatedAt: -1 });
-      return sendResponse(res, 200, true, 'Trashed media retrieved successfully', trashedItems);
+      const enrichedTrashedItems = await enrichMediaWithUser(trashedItems);
+      return sendResponse(res, 200, true, 'Trashed media retrieved successfully', enrichedTrashedItems);
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error fetching trashed media');
     }
@@ -294,7 +338,8 @@ export class AdminController {
   static async getAllAdminMedia(req: Request, res: Response) {
     try {
       const items = await Media.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
-      return sendResponse(res, 200, true, 'All admin media items retrieved successfully', items);
+      const enrichedItems = await enrichMediaWithUser(items);
+      return sendResponse(res, 200, true, 'All admin media items retrieved successfully', enrichedItems);
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error fetching admin media items');
     }

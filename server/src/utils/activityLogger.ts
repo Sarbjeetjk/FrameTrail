@@ -67,6 +67,39 @@ export function getClientDevice(req: Request): string {
   return `${browser} (${os})`;
 }
 
+let cachedServerGeo: any = null;
+let lastGeoFetch = 0;
+
+export async function getLiveGeoData(clientIp?: string) {
+  const now = Date.now();
+  if (cachedServerGeo && now - lastGeoFetch < 300000) {
+    return cachedServerGeo;
+  }
+  try {
+    const isLocal = !clientIp || clientIp.includes('127.0.0.1') || clientIp.includes('::1') || clientIp.startsWith('192.168.');
+    const res = await fetch(isLocal ? 'https://ipwho.is/' : `https://ipwho.is/${clientIp}`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success !== false && (data.city || data.ip)) {
+        cachedServerGeo = {
+          ip: data.ip,
+          location: `${data.city || 'Chandigarh'}, ${data.region ? data.region + ', ' : ''}${data.country || 'India'}`,
+          coordinates: { lat: data.latitude || 30.7363, lng: data.longitude || 76.7884 },
+          isp: data.connection?.isp || 'Reliance Jio Infocomm Limited',
+        };
+        lastGeoFetch = now;
+        return cachedServerGeo;
+      }
+    }
+  } catch (e) {}
+  return {
+    ip: '2409:40d1:42e:9b1f:95c:289f:b0fe:d676',
+    location: 'Chandigarh, India',
+    coordinates: { lat: 30.7363, lng: 76.7884 },
+    isp: 'Reliance Jio Infocomm Limited',
+  };
+}
+
 /**
  * Universal System Activity & Audit Trail Logger
  * Asynchronously writes to MongoDB Atlas without blocking endpoint execution
@@ -91,8 +124,14 @@ export async function recordActivityLog(
       options.userRole ||
       (authUser?.role === 'admin' ? 'admin' : authUser?.role === 'user' ? 'user' : 'visitor');
 
-    const ip = options.ip || (req ? getClientIp(req) : '103.211.54.12');
+    const rawIp = req ? getClientIp(req) : '';
+    const liveGeo = await getLiveGeoData(rawIp);
+
+    const ip = options.ip && options.ip !== '103.211.54.12' && options.ip !== '127.0.0.1' ? options.ip : (rawIp && !rawIp.includes('127.0.0.1') ? rawIp : liveGeo.ip);
     const device = options.device || (req ? getClientDevice(req) : 'Desktop (Browser)');
+    const location = options.location && !options.location.includes('New Delhi') ? options.location : liveGeo.location;
+    const coordinates = options.coordinates && options.coordinates.lat !== 28.6139 ? options.coordinates : liveGeo.coordinates;
+    const isp = options.isp && !options.isp.includes('103.211') ? options.isp : liveGeo.isp;
 
     const logEntry = new ActivityLog({
       event: options.event,
@@ -103,10 +142,10 @@ export async function recordActivityLog(
       userEmail,
       userRole,
       ip,
-      location: options.location || 'New Delhi, India',
-      coordinates: options.coordinates || { lat: 28.6139, lng: 77.209 },
+      location,
+      coordinates,
       device,
-      isp: options.isp || 'Reliance Jio Infocomm Limited',
+      isp,
       networkType: options.networkType || '4G / Wi-Fi',
       screenRes: options.screenRes || '1920 x 1080',
       timezone: options.timezone || 'Asia/Kolkata',

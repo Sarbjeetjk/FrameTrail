@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { IMediaItem } from '../types';
 import { MediaService } from '../services/mediaService';
 import { useMedia } from '../hooks/useMedia';
-import { Trash2, Edit3, Eye, EyeOff, Heart, Camera, Video, Film, AlertTriangle, RotateCcw, ChevronLeft, ChevronRight, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { Trash2, Edit3, Eye, EyeOff, Heart, Camera, Video, Film, AlertTriangle, RotateCcw, ChevronLeft, ChevronRight, CheckSquare, Square, Loader2, User, ShieldCheck } from 'lucide-react';
 import { getOptimizedImageUrl } from '../utils/imageUtils';
 
 interface AdminTableProps {
@@ -323,17 +323,53 @@ export const AdminTable: React.FC<AdminTableProps> = ({
                   </td>
 
                   {/* Asset info & preview */}
-                  <td className="py-3.5 px-5 flex items-center gap-3 min-w-[240px]">
-                  <img
-                    src={getOptimizedImageUrl(item.url, 300)}
-                    alt={item.title}
-                    className="w-11 h-11 rounded-xl object-cover bg-slate-950 border border-slate-700 flex-shrink-0"
-                  />
-                  <div className="truncate">
-                    <div className="font-extrabold text-white text-sm truncate">{item.title}</div>
-                    <div className="text-[10px] text-slate-400 font-mono truncate max-w-[180px]">{item._id}</div>
-                  </div>
-                </td>
+                  <td className="py-3.5 px-5 min-w-[280px]">
+                    {(() => {
+                      const uploader =
+                        typeof item.uploadedBy === 'object' && item.uploadedBy
+                          ? item.uploadedBy
+                          : { name: 'Admin / System', role: 'admin', email: '' };
+                      const isUserUploader = uploader.role === 'user';
+
+                      return (
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getOptimizedImageUrl(item.url, 300)}
+                            alt={item.title}
+                            className="w-12 h-12 rounded-xl object-cover bg-slate-950 border border-slate-700 flex-shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-extrabold text-white text-sm truncate" title={item.title}>
+                              {item.title}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono truncate max-w-[180px]">
+                              {item._id}
+                            </div>
+                            {/* 👤 Uploader Info Badge */}
+                            <div className="mt-1 flex items-center gap-1.5">
+                              {isUserUploader ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 truncate max-w-[210px]"
+                                  title={`Uploaded by User: ${uploader.name}${uploader.email ? ` (${uploader.email})` : ''}`}
+                                >
+                                  <User className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                                  <span className="truncate">User: {uploader.name}</span>
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-cyan-300 border border-slate-700"
+                                  title="Uploaded by Official Administrator / System"
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                                  <span>Admin / System</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
 
                 {/* Type Badge */}
                 <td className="py-3.5 px-5">
@@ -550,6 +586,16 @@ export const AdminTable: React.FC<AdminTableProps> = ({
                   <div className="text-[10px] font-mono text-slate-400 truncate">{editingItem.url}</div>
                 </div>
               </div>
+            </div>
+
+            {/* Uploader info strip */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px]">
+              <span className="text-slate-400 font-medium">Uploaded By:</span>
+              <span className="font-bold text-indigo-300">
+                {typeof editingItem.uploadedBy === 'object' && editingItem.uploadedBy
+                  ? `${editingItem.uploadedBy.name} (${editingItem.uploadedBy.role || 'user'})`
+                  : 'Admin / System'}
+              </span>
             </div>
 
             <form

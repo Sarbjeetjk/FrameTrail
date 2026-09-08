@@ -14,9 +14,9 @@ export const recordVisitorHit = async (pageName: string) => {
     }
     sessionStorage.setItem(`frametrail_last_hit_${pageName}`, now.toString());
 
-    let ip = '103.211.54.12';
-    let location = 'New Delhi, India';
-    let coordinates = { lat: 28.6139, lng: 77.209 };
+    let ip = '';
+    let location = 'Chandigarh, India';
+    let coordinates = { lat: 30.7363, lng: 76.7884 };
     let isp = 'Reliance Jio Infocomm Limited';
 
     // Fetch real IP & location metadata via backend proxy endpoint (Zero CORS errors)
@@ -24,7 +24,13 @@ export const recordVisitorHit = async (pageName: string) => {
       const cached = sessionStorage.getItem('frametrail_geoip');
       let res: any = null;
       if (cached) {
-        try { res = JSON.parse(cached); } catch (e) {}
+        try {
+          res = JSON.parse(cached);
+          if (res.city === 'New Delhi' || res.ip === '103.211.54.12') {
+            sessionStorage.removeItem('frametrail_geoip');
+            res = null;
+          }
+        } catch (e) {}
       }
 
       if (!res) {
@@ -37,10 +43,10 @@ export const recordVisitorHit = async (pageName: string) => {
 
       if (res && res.ip) {
         ip = res.ip;
-        const city = res.city || 'New Delhi';
-        const region = res.region || '';
-        const country = res.country_name || 'India';
-        location = `${city}${region ? `, ${region}` : ''}, ${country}`;
+        const city = res.city || 'Chandigarh';
+        const region = res.region || 'Chandigarh';
+        const country = res.country_name || res.country || 'India';
+        location = `${city}${region && region !== city ? `, ${region}` : ''}, ${country}`;
         if (res.latitude && res.longitude) {
           coordinates = { lat: res.latitude, lng: res.longitude };
         }

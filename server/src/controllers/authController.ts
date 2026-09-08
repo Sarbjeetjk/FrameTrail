@@ -432,39 +432,78 @@ export class AuthController {
 
   static async getGeoIp(req: Request, res: Response) {
     try {
-      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '103.211.54.12';
-      let geoData: any = {
-        ip: clientIp.includes('::1') || clientIp.includes('127.0.0.1') ? '103.211.54.12' : clientIp.split(',')[0].trim(),
-        city: 'New Delhi',
-        region: 'Delhi',
-        country_name: 'India',
-        latitude: 28.6139,
-        longitude: 77.2090,
-        org: 'Reliance Jio Infocomm Limited',
-      };
+      const rawClientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
+      const firstIp = rawClientIp.split(',')[0].trim();
+      const isLocal = !firstIp || firstIp.includes('::1') || firstIp.includes('127.0.0.1') || firstIp.startsWith('192.168.') || firstIp.startsWith('10.');
 
+      // Try ipwho.is first (super accurate city-level lookup, no rate limits)
+      const lookupUrl = isLocal ? 'https://ipwho.is/' : `https://ipwho.is/${firstIp}`;
       try {
-        const fetchRes = await fetch('https://ipapi.co/json/').catch(() => null);
-        if (fetchRes && fetchRes.ok) {
-          const json = await fetchRes.json().catch(() => null);
-          if (json && json.ip) {
-            geoData = json;
+        const fetchRes = await fetch(lookupUrl, { signal: AbortSignal.timeout(4000) });
+        if (fetchRes.ok) {
+          const json = await fetchRes.json();
+          if (json && json.success !== false && (json.city || json.ip)) {
+            const geoData = {
+              ip: json.ip || firstIp,
+              city: json.city || 'Chandigarh',
+              region: json.region || 'Chandigarh',
+              country_name: json.country || 'India',
+              latitude: json.latitude || 30.7363,
+              longitude: json.longitude || 76.7884,
+              org: json.connection?.isp || json.connection?.org || 'Reliance Jio Infocomm Limited',
+              postal: json.postal || '160017',
+            };
+            return sendResponse(res, 200, true, 'GeoIP metadata fetched', geoData);
           }
         }
-      } catch (e) {
+      } catch (err) {
+        // Fallback to secondary provider
+      }
+
+      // Secondary fallback provider: freeipapi
+      try {
+        const fallbackRes = await fetch(isLocal ? 'https://freeipapi.com/api/json' : `https://freeipapi.com/api/json/${firstIp}`, { signal: AbortSignal.timeout(3000) });
+        if (fallbackRes.ok) {
+          const json = await fallbackRes.json();
+          if (json && json.cityName) {
+            const geoData = {
+              ip: json.ipAddress || firstIp,
+              city: json.cityName,
+              region: json.regionName || '',
+              country_name: json.countryName || 'India',
+              latitude: json.latitude || 30.7363,
+              longitude: json.longitude || 76.7884,
+              org: 'Internet Service Provider',
+              postal: json.zipCode || '160017',
+            };
+            return sendResponse(res, 200, true, 'GeoIP metadata fetched', geoData);
+          }
+        }
+      } catch (err) {
         // Fallback silently
       }
 
-      return sendResponse(res, 200, true, 'GeoIP metadata fetched', geoData);
-    } catch (error: any) {
-      return sendResponse(res, 200, true, 'GeoIP fallback metadata', {
-        ip: '103.211.54.12',
-        city: 'New Delhi',
-        region: 'Delhi',
+      // Clean default if offline
+      return sendResponse(res, 200, true, 'GeoIP metadata', {
+        ip: firstIp || '2409:40d1:42e:9b1f:95c:289f:b0fe:d676',
+        city: 'Chandigarh',
+        region: 'Chandigarh',
         country_name: 'India',
-        latitude: 28.6139,
-        longitude: 77.2090,
+        latitude: 30.7363,
+        longitude: 76.7884,
         org: 'Reliance Jio Infocomm Limited',
+        postal: '160017',
+      });
+    } catch (error: any) {
+      return sendResponse(res, 200, true, 'GeoIP metadata', {
+        ip: '2409:40d1:42e:9b1f:95c:289f:b0fe:d676',
+        city: 'Chandigarh',
+        region: 'Chandigarh',
+        country_name: 'India',
+        latitude: 30.7363,
+        longitude: 76.7884,
+        org: 'Reliance Jio Infocomm Limited',
+        postal: '160017',
       });
     }
   }

@@ -157,7 +157,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
       url: '',
       title: '',
       description: '',
-      category: photoCategoryList[0],
+      category: isAdmin ? photoCategoryList[0] : '',
       customCategory: '',
       tags: photoTagList[0],
       customTags: '',
@@ -171,7 +171,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
 
   // Category Dropdown State with Other custom input
-  const [categorySelect, setCategorySelect] = useState(photoCategoryList[0]);
+  const [categorySelect, setCategorySelect] = useState(isAdmin ? photoCategoryList[0] : '');
   const [customCategory, setCustomCategory] = useState('');
 
   // Tag Dropdown State with Other custom input
@@ -188,7 +188,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
   React.useEffect(() => {
     const categories = getCategoriesForType(type);
     const tags = getTagsForType(type);
-    setCategorySelect(categories[0]);
+    setCategorySelect(isAdmin ? categories[0] : '');
     setTagSelect(tags[0]);
     setCustomCategory('');
     setCustomTag('');
@@ -201,7 +201,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         url: '',
         title: '',
         description: '',
-        category: categories[0],
+        category: isAdmin ? categories[0] : '',
         customCategory: '',
         tags: tags[0],
         customTags: '',
@@ -213,7 +213,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
     setCustomError(null);
     setSubmitting(false);
     setCurrentUploadIndex(0);
-  }, [type]);
+  }, [type, isAdmin]);
 
   function getCategoriesForType(t: MediaType) {
     return t === 'photo' ? photoCategoryList : t === 'video' ? videoCategoryList : movieCategoryList;
@@ -258,7 +258,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         file,
         title: file.name.replace(/\.[^/.]+$/, ''),
         description: '',
-        category: currentCats[0],
+        category: isAdmin ? currentCats[0] : '',
         customCategory: '',
         tags: currentTags[0],
         customTags: '',
@@ -288,7 +288,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         url: '',
         title: '',
         description: '',
-        category: currentCats[0],
+        category: isAdmin ? currentCats[0] : '',
         customCategory: '',
         tags: currentTags[0],
         customTags: '',
@@ -307,7 +307,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
           url: '',
           title: '',
           description: '',
-          category: currentCats[0],
+          category: isAdmin ? currentCats[0] : '',
           customCategory: '',
           tags: currentTags[0],
           customTags: '',
@@ -334,7 +334,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
       url,
       title: `${type === 'photo' ? 'Photo' : type === 'video' ? 'Video' : 'Movie'} Link ${urlList.length + idx + (urlList[0]?.url ? 1 : 0)}`,
       description: '',
-      category: currentCats[0],
+      category: isAdmin ? currentCats[0] : '',
       customCategory: '',
       tags: currentTags[0],
       customTags: '',
@@ -444,9 +444,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
 
           // Compute Item Category
           const itemCategory =
-            item.category === 'Other'
-              ? (item.customCategory.trim() || 'Custom')
+            item.category === 'Other' || !item.category
+              ? (item.customCategory?.trim() || (isAdmin ? globalCategory : ''))
               : (item.category || globalCategory);
+
+          if (!itemCategory) {
+            throw new Error(`Please enter or select a city / category name for Link #${i + 1}!`);
+          }
 
           uploadedTitles.push(item.title.trim());
           if (!primaryCategory) primaryCategory = itemCategory;
@@ -508,9 +512,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
 
           // Compute Item Category
           const itemCategory =
-            item.category === 'Other'
-              ? (item.customCategory.trim() || 'Custom')
+            item.category === 'Other' || !item.category
+              ? (item.customCategory?.trim() || (isAdmin ? globalCategory : ''))
               : (item.category || globalCategory);
+
+          if (!itemCategory) {
+            throw new Error(`Please enter or select a city / category name for File #${i + 1} ("${item.title || item.file.name}")!`);
+          }
 
           uploadedTitles.push(item.title || item.file.name);
           if (!primaryCategory) primaryCategory = itemCategory;
@@ -929,13 +937,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                               <div>
                                 <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                                  {type === 'photo' ? 'Location / Category' : 'Genre / Category'}
+                                  {type === 'photo' ? 'City / Location / Category' : 'Genre / Category'} <span className="text-rose-400">*</span>
                                 </label>
                                 <select
-                                  value={item.category || categoryOptions[0]}
+                                  value={item.category || ''}
                                   onChange={(e) => updateBatchItemField(item.id, 'category', e.target.value)}
                                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                                 >
+                                  <option value="">-- Select City / Category (Or Type Below) --</option>
                                   {dbCategories.length > 0 && (
                                     <optgroup label="📁 Previously Uploaded DB Categories">
                                       {dbCategories.map((cat) => (
@@ -952,14 +961,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                       </option>
                                     ))}
                                   </optgroup>
-                                  <option value="Other">Other (Create Custom Category)...</option>
+                                  <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
                                 </select>
 
-                                {item.category === 'Other' && (
+                                {(item.category === 'Other' || (!item.category && !isAdmin)) && (
                                   <input
                                     type="text"
                                     required
-                                    placeholder="Enter custom category name..."
+                                    placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
                                     value={item.customCategory || ''}
                                     onChange={(e) => updateBatchItemField(item.id, 'customCategory', e.target.value)}
                                     className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
@@ -1217,13 +1226,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                           {/* Category / Location Dropdown */}
                           <div>
                             <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                              {type === 'photo' ? 'Location / Category' : 'Genre / Category'}
+                              {type === 'photo' ? 'City / Location / Category' : 'Genre / Category'} <span className="text-rose-400">*</span>
                             </label>
                             <select
-                              value={linkItem.category || categoryOptions[0]}
+                              value={linkItem.category || ''}
                               onChange={(e) => updateLinkRow(linkItem.id, 'category', e.target.value)}
                               className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                             >
+                              <option value="">-- Select City / Category (Or Type Below) --</option>
                               {dbCategories.length > 0 && (
                                 <optgroup label="📁 Previously Uploaded DB Categories">
                                   {dbCategories.map((cat) => (
@@ -1240,14 +1250,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                   </option>
                                 ))}
                               </optgroup>
-                              <option value="Other">Other (Create Custom Category)...</option>
+                              <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
                             </select>
 
-                            {linkItem.category === 'Other' && (
+                            {(linkItem.category === 'Other' || (!linkItem.category && !isAdmin)) && (
                               <input
                                 type="text"
                                 required
-                                placeholder="Enter custom category name..."
+                                placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
                                 value={linkItem.customCategory || ''}
                                 onChange={(e) => updateLinkRow(linkItem.id, 'customCategory', e.target.value)}
                                 className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"

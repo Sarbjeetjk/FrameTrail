@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { X, Camera, Video, Trash2, Eye, ExternalLink, Play, AlertCircle } from 'lucide-react';
 import { UserSpaceData, IMediaItem } from '../../types';
 import { UserAvatar } from '../UserAvatar';
@@ -113,7 +114,10 @@ export const UserMediaViewerModal: React.FC<UserMediaViewerModalProps> = ({
                   key={item._id}
                   className="group bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all shadow-md"
                 >
-                  <div className="relative aspect-video bg-slate-900 overflow-hidden">
+                  <div
+                    onClick={() => setSelectedPreview(item)}
+                    className="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer group"
+                  >
                     {item.type === 'photo' ? (
                       <img
                         src={item.url}
@@ -142,6 +146,12 @@ export const UserMediaViewerModal: React.FC<UserMediaViewerModalProps> = ({
                     <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-black/70 backdrop-blur-md text-white border border-white/10">
                       {item.type}
                     </span>
+
+                    <div className="absolute inset-0 bg-indigo-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-black/80 text-white text-[11px] font-bold flex items-center gap-1 backdrop-blur-sm border border-white/20">
+                        <Eye className="w-3.5 h-3.5 text-cyan-400" /> Preview
+                      </span>
+                    </div>
                   </div>
 
                   <div className="p-3.5 flex flex-col justify-between flex-1">
@@ -155,15 +165,27 @@ export const UserMediaViewerModal: React.FC<UserMediaViewerModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-800">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-[11px] font-bold"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>Open Direct Link</span>
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/media/${item._id}`}
+                          target="_blank"
+                          className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-[11px] font-bold transition-colors"
+                          title="View Full Media Showcase Page"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>View Full Asset</span>
+                        </Link>
+                        <span className="text-slate-700">&bull;</span>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-slate-400 hover:text-white text-[11px] font-medium"
+                          title="Open direct file URL"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
 
                       <button
                         onClick={() => handleDelete(item._id)}
@@ -186,6 +208,56 @@ export const UserMediaViewerModal: React.FC<UserMediaViewerModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Full Asset Quick Lightbox Preview Modal */}
+      {selectedPreview && (
+        <div
+          onClick={() => setSelectedPreview(null)}
+          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full overflow-hidden shadow-2xl space-y-4 p-5"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-black text-white">{selectedPreview.title}</h4>
+                <p className="text-[11px] text-slate-400 font-mono">
+                  {selectedPreview.category} &bull; {selectedPreview.type.toUpperCase()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/media/${selectedPreview._id}`}
+                  target="_blank"
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Open Full Showcase</span>
+                </Link>
+                <button
+                  onClick={() => setSelectedPreview(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center max-h-[60vh] border border-slate-800">
+              {selectedPreview.type === 'photo' ? (
+                <img
+                  src={selectedPreview.url}
+                  alt={selectedPreview.title}
+                  className="max-h-[60vh] w-auto object-contain"
+                />
+              ) : (
+                <video src={selectedPreview.url} controls autoPlay className="max-h-[60vh] w-full" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

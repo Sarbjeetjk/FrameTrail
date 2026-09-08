@@ -146,15 +146,35 @@ export class MediaController {
         return sendError(res, 400, 'Invalid media ID format');
       }
 
-      const media = await Media.findByIdAndUpdate(
+      const mediaDoc = await Media.findByIdAndUpdate(
         id,
         { $inc: { views: 1 } },
         { new: true }
       );
 
-      if (!media) {
+      if (!mediaDoc) {
         return sendError(res, 404, 'Media item not found');
       }
+
+      const media: any = mediaDoc.toObject();
+
+      // Enrich uploader information
+      let uploaderInfo: any = { name: 'Admin / System', role: 'admin' };
+      const rawUploadedBy = media.uploadedBy;
+      const rawId = typeof rawUploadedBy === 'object' && rawUploadedBy ? (rawUploadedBy._id || rawUploadedBy.id) : rawUploadedBy;
+      if (rawId && mongoose.Types.ObjectId.isValid(rawId.toString())) {
+        const u = await User.findById(rawId).select('_id name email role avatar').lean();
+        if (u) {
+          uploaderInfo = {
+            _id: u._id.toString(),
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            avatar: u.avatar,
+          };
+        }
+      }
+      media.uploadedBy = uploaderInfo;
 
       return sendResponse(res, 200, true, 'Media detail retrieved', media);
     } catch (error: any) {

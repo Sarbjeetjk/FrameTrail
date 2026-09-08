@@ -40,19 +40,35 @@ export const logActivity = async ({
     }
     if (!userName) userName = 'Guest Visitor';
 
-    const firstLog = currentLogs[0] || {};
-    let ip = firstLog.ip || '103.211.54.12';
-    let location = firstLog.location || 'New Delhi, India';
-    let coordinates = firstLog.coordinates || { lat: 28.6139, lng: 77.209 };
-    let isp = firstLog.isp || 'Reliance Jio Infocomm Limited';
+    let ip = '';
+    let location = 'Chandigarh, India';
+    let coordinates = { lat: 30.7363, lng: 76.7884 };
+    let isp = 'Reliance Jio Infocomm Limited';
 
-    // Try fetching cached GeoIP data if available
+    // Try fetching cached GeoIP data if available, discarding stale dummy New Delhi cache
     try {
       const cached = sessionStorage.getItem('frametrail_geoip');
+      let data: any = null;
       if (cached) {
-        const data = JSON.parse(cached);
+        data = JSON.parse(cached);
+        if (data.city === 'New Delhi' || data.ip === '103.211.54.12') {
+          sessionStorage.removeItem('frametrail_geoip');
+          data = null;
+        }
+      }
+
+      if (!data) {
+        // Fetch real GeoIP from backend proxy endpoint or ipwho.is
+        const res = await api.get('/auth/geoip').catch(() => null);
+        if (res && res.data && res.data.data) {
+          data = res.data.data;
+          sessionStorage.setItem('frametrail_geoip', JSON.stringify(data));
+        }
+      }
+
+      if (data) {
         if (data.ip) ip = data.ip;
-        if (data.city) location = `${data.city}, ${data.region || ''} ${data.country_name || 'India'}`.trim();
+        if (data.city) location = `${data.city}, ${data.region ? data.region + ', ' : ''}${data.country_name || data.country || 'India'}`.trim();
         if (data.latitude && data.longitude) coordinates = { lat: data.latitude, lng: data.longitude };
         if (data.org) isp = data.org;
       }
@@ -70,7 +86,7 @@ export const logActivity = async ({
       coordinates,
       device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Browser'})`,
       isp,
-      networkType: '4G / Wi-Fi',
+      networkType: '5G / Wi-Fi',
       screenRes: `${window.screen.width} x ${window.screen.height}`,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
       hardwareSpec: '16 GB RAM (16 CPU Cores)',
