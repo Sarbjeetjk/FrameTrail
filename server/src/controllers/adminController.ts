@@ -5,6 +5,8 @@ import { User } from '../models/User';
 import { R2Service } from '../services/r2Service';
 import { sendResponse, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { ActivityLog } from '../models/ActivityLog';
+import { recordActivityLog, backfillHistoricalLogs } from '../utils/activityLogger';
 import mongoose from 'mongoose';
 
 export class AdminController {
@@ -39,6 +41,20 @@ export class AdminController {
         tags: Array.isArray(tags) ? tags : [],
         metadata: metadata || {},
         isFeatured: Boolean(isFeatured),
+      });
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_UPLOADED',
+        detail: `Admin published new ${(type || 'photo').toUpperCase()} asset "${media.title}" in Category "${media.category || 'General'}".`,
+        level: 'success',
+        metadata: {
+          mediaId: media._id.toString(),
+          mediaTitle: media.title,
+          mediaType: media.type,
+          category: media.category,
+          url: media.url,
+        },
       });
 
       return sendResponse(res, 201, true, 'Media created successfully', media);
@@ -94,6 +110,14 @@ export class AdminController {
         return sendError(res, 404, 'Media item not found');
       }
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_TRASHED',
+        detail: `Admin moved ${(media.type || 'media').toUpperCase()} asset "${media.title}" to Trash Bin.`,
+        level: 'warn',
+        metadata: { mediaId: media._id.toString(), mediaTitle: media.title, mediaType: media.type },
+      });
+
       return sendResponse(res, 200, true, 'Media moved to Trash Bin', { id });
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error moving media to trash');
@@ -120,6 +144,14 @@ export class AdminController {
       if (!media) {
         return sendError(res, 404, 'Media item not found');
       }
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_RESTORED',
+        detail: `Admin restored ${(media.type || 'media').toUpperCase()} asset "${media.title}" from Trash Bin back to active gallery.`,
+        level: 'success',
+        metadata: { mediaId: media._id.toString(), mediaTitle: media.title, mediaType: media.type },
+      });
 
       return sendResponse(res, 200, true, 'Media restored successfully', media);
     } catch (error: any) {
@@ -149,6 +181,14 @@ export class AdminController {
       }
 
       await Media.findByIdAndDelete(id);
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_PURGED',
+        detail: `Admin permanently purged ${(media.type || 'media').toUpperCase()} asset "${media.title}" from database & Cloudinary/R2 storage.`,
+        level: 'error',
+        metadata: { mediaId: media._id.toString(), mediaTitle: media.title, mediaType: media.type },
+      });
 
       return sendResponse(res, 200, true, 'Media permanently purged from database', { id });
     } catch (error: any) {
@@ -463,6 +503,14 @@ export class AdminController {
       media.isDeleted = true;
       await media.save();
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_MODERATED_DELETE',
+        detail: `Admin moderated and deleted user media asset "${media.title}" (${media.type}).`,
+        level: 'warn',
+        metadata: { mediaId: media._id.toString(), mediaTitle: media.title, mediaType: media.type },
+      });
+
       return sendResponse(res, 200, true, 'User media asset deleted successfully', { id: mediaId });
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Failed to delete user media');
@@ -517,6 +565,14 @@ export class AdminController {
       // Permanently delete user document
       await User.findByIdAndDelete(userId);
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'USER_ACCOUNT_PURGED',
+        detail: `Admin permanently deleted account "${targetUser.name}" (${targetUser.email}) and all ${deletedMediaResult.deletedCount} associated media assets.`,
+        level: 'error',
+        metadata: { userId, userName: targetUser.name, userEmail: targetUser.email, deletedMediaCount: deletedMediaResult.deletedCount },
+      });
+
       return sendResponse(
         res,
         200,
@@ -526,6 +582,184 @@ export class AdminController {
       );
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Failed to permanently delete user account');
+    }
+  }
+
+  /**
+   * Admin: Get all activity logs from MongoDB (Active vs Trashed Archive)
+   */
+  static async getLogs(req: AuthenticatedRequest, res: Response) {
+    try {
+      // Auto backfill historical logs if needed in background
+      const totalCount = await ActivityLog.countDocuments();
+      if (totalCount < 5) {
+        await backfillHistoricalLogs();
+      }
+
+      const { tab } = req.query;
+      const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      let query: any = {};
+      if (tab === 'trash') {
+        // Logs older than 30 days OR explicitly archived
+        query = {
+          $or: [{ isArchived: true }, { createdAt: { $lt: THIRTY_DAYS_AGO } }],
+        };
+      } else {
+        // Active logs: within 30 days and not archived
+        query = {
+          isArchived: { $ne: true },
+          createdAt: { $gte: THIRTY_DAYS_AGO },
+        };
+      }
+
+      const logs = await ActivityLog.find(query).sort({ createdAt: -1 }).limit(150);
+
+      const formatted = logs.map((l) => ({
+        id: l._id.toString(),
+        timestamp: new Date(l.createdAt).getTime(),
+        time: 'Just now',
+        event: l.event,
+        user: l.user,
+        userEmail: l.userEmail,
+        userRole: l.userRole,
+        detail: l.detail,
+        level: l.level,
+        ip: l.ip,
+        location: l.location,
+        coordinates: l.coordinates,
+        device: l.device,
+        isp: l.isp,
+        networkType: l.networkType,
+        screenRes: l.screenRes,
+        timezone: l.timezone,
+        hardwareSpec: l.hardwareSpec,
+        isArchived: l.isArchived,
+        createdAt: l.createdAt,
+      }));
+
+      return sendResponse(res, 200, true, 'Activity logs fetched successfully', formatted);
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to fetch activity logs');
+    }
+  }
+
+  /**
+   * Admin: Delete a single log entry from MongoDB
+   */
+  static async deleteSingleLog(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return sendError(res, 400, 'Log ID is required');
+      }
+
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        await ActivityLog.findByIdAndDelete(id);
+      } else {
+        await ActivityLog.deleteOne({ _id: id });
+      }
+
+      return sendResponse(res, 200, true, 'Activity log entry permanently deleted', { id });
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to delete activity log');
+    }
+  }
+
+  /**
+   * Admin: Clear / Purge logs with Admin Password Verification
+   */
+  static async clearLogs(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'Unauthorized');
+      }
+
+      const { password, tab } = req.body;
+      if (!password || !password.trim()) {
+        return sendError(res, 400, 'Admin password is required to clear activity logs');
+      }
+
+      // Verify Admin Password
+      const adminUser = await User.findById(req.user.id).select('+password');
+      if (!adminUser) {
+        return sendError(res, 404, 'Admin account not found');
+      }
+
+      const isMatch = await adminUser.comparePassword(password.trim());
+      if (!isMatch) {
+        return sendError(res, 401, 'Incorrect admin password! Log purge denied.');
+      }
+
+      const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      if (tab === 'trash') {
+        // Permanently purge trash archive
+        await ActivityLog.deleteMany({
+          $or: [{ isArchived: true }, { createdAt: { $lt: THIRTY_DAYS_AGO } }],
+        });
+      } else {
+        // Move active logs to archive instead of completely losing audit trail
+        await ActivityLog.updateMany(
+          { isArchived: { $ne: true } },
+          { $set: { isArchived: true, archivedAt: new Date() } }
+        );
+      }
+
+      return sendResponse(res, 200, true, 'System activity logs cleared successfully');
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to clear activity logs');
+    }
+  }
+
+  /**
+   * Admin: Restore an archived/trashed log entry back to active stream
+   */
+  static async restoreLog(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return sendError(res, 400, 'Log ID is required');
+      }
+
+      const log = await ActivityLog.findById(id);
+      if (!log) {
+        return sendError(res, 404, 'Activity log entry not found');
+      }
+
+      log.isArchived = false;
+      log.createdAt = new Date();
+      await log.save();
+
+      return sendResponse(res, 200, true, 'Activity log restored to active stream successfully', log);
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to restore activity log');
+    }
+  }
+
+  /**
+   * Client Telemetry API: Allows client applications to submit user actions directly into MongoDB
+   */
+  static async createClientLog(req: Request, res: Response) {
+    try {
+      const { event, detail, level, user, location, coordinates, device } = req.body;
+      if (!event || !detail) {
+        return sendError(res, 400, 'Event and detail are required');
+      }
+
+      const log = await recordActivityLog(req, {
+        event,
+        detail,
+        level: level || 'info',
+        user,
+        location,
+        coordinates,
+        device,
+      });
+
+      return sendResponse(res, 201, true, 'Activity log recorded in MongoDB Atlas', log);
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to record activity log');
     }
   }
 }

@@ -4,6 +4,7 @@ import { HiddenCategory } from '../models/HiddenCategory';
 import { User } from '../models/User';
 import { sendResponse, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { recordActivityLog } from '../utils/activityLogger';
 import mongoose from 'mongoose';
 
 function escapeRegex(str: string) {
@@ -298,6 +299,24 @@ export class MediaController {
         uploadedBy: req.user.id,
       });
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'MEDIA_UPLOADED',
+        detail: `User "${user.name}" (${user.email}) published new ${(type || 'photo').toUpperCase()} asset "${media.title}" in Category "${media.category || 'Personal'}".`,
+        level: 'success',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        metadata: {
+          mediaId: media._id.toString(),
+          mediaTitle: media.title,
+          mediaType: media.type,
+          category: media.category,
+          url: media.url,
+        },
+      });
+
       return sendResponse(res, 201, true, 'Media uploaded to your personal space successfully', media);
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error creating user upload');
@@ -378,6 +397,23 @@ export class MediaController {
 
       media.isDeleted = true;
       await media.save();
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      const user = await User.findById(req.user.id);
+      recordActivityLog(req, {
+        event: 'MEDIA_DELETED',
+        detail: `User "${user?.name || req.user.email || 'User'}" deleted ${(media.type || 'media').toUpperCase()} asset "${media.title}".`,
+        level: 'warn',
+        user: user?.name || req.user.email || 'User',
+        userId: req.user.id,
+        userEmail: user?.email || req.user.email || '',
+        userRole: 'user',
+        metadata: {
+          mediaId: media._id.toString(),
+          mediaTitle: media.title,
+          mediaType: media.type,
+        },
+      });
 
       return sendResponse(res, 200, true, 'Media removed from personal space successfully', { id });
     } catch (error: any) {

@@ -6,6 +6,7 @@ import { sendOtpEmail } from '../utils/sendgrid';
 import { generateToken } from '../utils/jwt';
 import { sendResponse, sendError } from '../utils/response';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { recordActivityLog } from '../utils/activityLogger';
 
 export class AuthController {
   static async sendOtp(req: Request, res: Response) {
@@ -164,6 +165,17 @@ export class AuthController {
         email: user.email,
       });
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'ACCOUNT_CREATED',
+        detail: `New ${user.role === 'admin' ? 'Administrator' : 'User'} account "${user.name}" (${user.email}) registered successfully.`,
+        level: 'success',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+      });
+
       return sendResponse(res, 201, true, 'User registered successfully', {
         user: {
           id: user._id,
@@ -215,6 +227,17 @@ export class AuthController {
         id: user._id.toString(),
         role: user.role,
         email: user.email,
+      });
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: user.role === 'admin' ? 'ADMIN_LOGIN' : 'USER_LOGIN',
+        detail: `${user.role === 'admin' ? 'Administrator' : 'User'} "${user.name}" (${user.email}) logged into FrameTrail.`,
+        level: 'info',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
       });
 
       return sendResponse(res, 200, true, 'Login successful', {
@@ -310,6 +333,17 @@ export class AuthController {
 
       await user.save();
 
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'PROFILE_UPDATED',
+        detail: `Profile details updated for user "${user.name}" (${user.email}).`,
+        level: 'info',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+      });
+
       return sendResponse(res, 200, true, 'Profile updated successfully', {
         user: {
           id: user._id,
@@ -369,6 +403,17 @@ export class AuthController {
 
       user.password = password;
       await user.save();
+
+      // 📝 Record Centralized System Activity Audit Log in MongoDB
+      recordActivityLog(req, {
+        event: 'PASSWORD_RESET',
+        detail: `Password successfully reset for account "${user.name}" (${user.email}).`,
+        level: 'warn',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+      });
 
       return sendResponse(res, 200, true, 'Password reset successfully');
     } catch (error: any) {

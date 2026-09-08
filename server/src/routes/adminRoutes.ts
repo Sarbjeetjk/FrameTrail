@@ -24,4 +24,10 @@ router.put('/media/:id/restore', AdminController.restoreMedia);
 router.delete('/media/:id', AdminController.deleteMedia);
 router.delete('/media/:id/purge', AdminController.purgeMedia);
 
+// Activity Logs Management Routes
+router.get('/logs', AdminController.getLogs);
+router.delete('/logs/:id', AdminController.deleteSingleLog);
+router.post('/logs/clear', AdminController.clearLogs);
+router.put('/logs/:id/restore', AdminController.restoreLog);
+
 export default router;

@@ -9,7 +9,7 @@ interface LogEventOptions {
 
 /**
  * Universal System Activity & User Audit Logger
- * Logs all user & admin activities (Registration, Login, Likes, Uploads, Edits, Deletes, Messages)
+ * Logs all user & admin activities and syncs with MongoDB Atlas & localStorage
  */
 export const logActivity = async ({
   event,
@@ -30,10 +30,12 @@ export const logActivity = async ({
 
     const savedUser = localStorage.getItem('frametrail_user');
     let userName = user;
+    let userEmail = '';
     if (!userName && savedUser) {
       try {
         const u = JSON.parse(savedUser);
         userName = u.name || u.email;
+        userEmail = u.email || '';
       } catch (e) {}
     }
     if (!userName) userName = 'Guest Visitor';
@@ -62,10 +64,11 @@ export const logActivity = async ({
       time: 'Just now',
       event,
       user: userName,
+      userEmail,
       ip,
       location,
       coordinates,
-      device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
+      device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Browser'})`,
       isp,
       networkType: '4G / Wi-Fi',
       screenRes: `${window.screen.width} x ${window.screen.height}`,
@@ -75,6 +78,10 @@ export const logActivity = async ({
       level,
     };
 
+    // 1. Sync to MongoDB Atlas backend in background
+    api.post('/logs', newLog).catch(() => {});
+
+    // 2. Sync to localStorage for immediate offline/instant preview
     const updated = [newLog, ...currentLogs];
     localStorage.setItem('frametrail_system_logs', JSON.stringify(updated.slice(0, 100)));
   } catch (error) {

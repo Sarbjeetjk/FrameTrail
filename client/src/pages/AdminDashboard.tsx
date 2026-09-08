@@ -183,13 +183,15 @@ export const AdminDashboard: React.FC = () => {
     setServerError(false);
     try {
       // 🚀 Fast Concurrent Parallel Requests using Promise.allSettled (10x Performance Boost)
-      const [statsResult, mediaResult, trashResult, hiddenResult, contactResult, usersResult] = await Promise.allSettled([
+      const [statsResult, mediaResult, trashResult, hiddenResult, contactResult, usersResult, logsResult, trashedLogsResult] = await Promise.allSettled([
         MediaService.getAdminStats(),
         MediaService.getAllAdminMedia(),
         MediaService.getTrashedMedia(),
         MediaService.getHiddenMedia(),
         api.get('/contact'),
         api.get('/auth/users'),
+        api.get('/admin/logs?tab=active'),
+        api.get('/admin/logs?tab=trash'),
       ]);
 
       if (statsResult.status === 'fulfilled' && statsResult.value?.success && statsResult.value.data) {
@@ -216,17 +218,12 @@ export const AdminDashboard: React.FC = () => {
         setRegisteredUsers(usersResult.value.data.data);
       }
 
-      // Sync latest system logs from localStorage in background
-      const savedLogs = localStorage.getItem('frametrail_system_logs');
-      if (savedLogs !== null) {
-        try {
-          const parsed = JSON.parse(savedLogs);
-          if (Array.isArray(parsed)) {
-            setSystemLogs(parsed);
-          }
-        } catch (e) {
-          // ignore
-        }
+      // Sync latest live system logs directly from MongoDB Atlas
+      if (logsResult.status === 'fulfilled' && logsResult.value?.data?.data) {
+        setSystemLogs(logsResult.value.data.data);
+      }
+      if (trashedLogsResult.status === 'fulfilled' && trashedLogsResult.value?.data?.data) {
+        setTrashedSystemLogs(trashedLogsResult.value.data.data);
       }
     } catch (err: any) {
       console.error('[Admin Dashboard Error]', err);
@@ -340,32 +337,28 @@ export const AdminDashboard: React.FC = () => {
     return active;
   };
 
-  // Real-Time System Activity Telemetry Event Logger
+  // Real-Time System Activity Telemetry Event Logger (Syncs to MongoDB Atlas)
   const logAdminEvent = (event: string, detail: string, level: 'info' | 'warn' | 'success' | 'error' = 'info') => {
-    let currentLogs: any[] = [];
-    try {
-      const saved = localStorage.getItem('frametrail_system_logs');
-      if (saved) currentLogs = JSON.parse(saved);
-    } catch (e) {
-      currentLogs = systemLogs;
-    }
-    if (!Array.isArray(currentLogs) || currentLogs.length === 0) {
-      currentLogs = systemLogs;
-    }
+    // 1. Post to MongoDB Atlas API
+    api.post('/logs', {
+      event,
+      detail,
+      level,
+      user: user?.name || 'Super Admin',
+    }).catch(() => {});
 
-    const firstLog = currentLogs[0] || {};
-
+    // 2. Immediate local preview update
     const newLog = {
       id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       timestamp: Date.now(),
       time: 'Just now',
       event,
       user: user?.name || 'Super Admin',
-      ip: firstLog.ip || '103.211.54.12',
-      location: firstLog.location || 'New Delhi, India',
-      coordinates: firstLog.coordinates || { lat: 28.6139, lng: 77.2090 },
+      ip: '103.211.54.12',
+      location: 'New Delhi, India',
+      coordinates: { lat: 28.6139, lng: 77.2090 },
       device: `${navigator.platform || 'Desktop'} (${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'})`,
-      isp: firstLog.isp || 'Reliance Jio Infocomm Limited',
+      isp: 'Reliance Jio Infocomm Limited',
       networkType: '4G / Wi-Fi',
       screenRes: `${window.screen.width} x ${window.screen.height}`,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
@@ -374,26 +367,20 @@ export const AdminDashboard: React.FC = () => {
       level,
     };
 
-    const updated = [newLog, ...currentLogs];
-    const processed = process30DayRetention(updated);
-
-    // Save to localStorage SYNCHRONOUSLY so subsequent loadAdminData() reads the new log!
-    localStorage.setItem('frametrail_system_logs', JSON.stringify(processed));
-    setSystemLogs(processed);
+    setSystemLogs((prev) => [newLog, ...prev]);
   };
 
-  const handleRestoreLog = (logToRestore: any) => {
-    setTrashedSystemLogs((prev) => {
-      const updated = prev.filter((l) => l.id !== logToRestore.id);
-      localStorage.setItem('frametrail_trashed_system_logs', JSON.stringify(updated));
-      return updated;
-    });
-    setSystemLogs((prev) => {
-      const updated = [{ ...logToRestore, timestamp: Date.now() }, ...prev];
-      localStorage.setItem('frametrail_system_logs', JSON.stringify(updated));
-      return updated;
-    });
-    setNotice(`Activity log "${logToRestore.event}" restored to Active Logs.`);
+  const handleRestoreLog = async (logToRestore: any) => {
+    try {
+      const logId = logToRestore.id || logToRestore._id;
+      await api.put(`/admin/logs/${logId}/restore`);
+      setTrashedSystemLogs((prev) => prev.filter((l) => (l.id || l._id) !== logId));
+      setSystemLogs((prev) => [{ ...logToRestore, timestamp: Date.now() }, ...prev]);
+      setNotice(`Activity log "${logToRestore.event}" restored to Active Logs.`);
+      loadAdminData(true);
+    } catch (err: any) {
+      console.error('[Restore Log Error]', err);
+    }
     setTimeout(() => setNotice(null), 3000);
   };
 
@@ -615,41 +602,32 @@ export const AdminDashboard: React.FC = () => {
     setPurgeLogsError(null);
 
     try {
-      const activeToken = localStorage.getItem('frametrail_token') || localStorage.getItem('token');
-      const res = await api.post(
-        '/auth/verify-password',
-        { password: purgeLogsPassword.trim() },
-        { headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {} }
-      );
-      if (res.data && res.data.success) {
-        if (deleteLogTarget === 'all') {
-          if (logTab === 'trash') {
-            setTrashedSystemLogs([]);
-            localStorage.removeItem('frametrail_trashed_system_logs');
-            setNotice('All trashed activity logs permanently purged after password verification.');
-          } else {
-            setSystemLogs([]);
-            localStorage.removeItem('frametrail_system_logs');
-            setNotice('All active system logs purged successfully after password verification.');
-          }
+      if (deleteLogTarget === 'all') {
+        await api.post('/admin/logs/clear', {
+          password: purgeLogsPassword.trim(),
+          tab: logTab,
+        });
+
+        if (logTab === 'trash') {
+          setTrashedSystemLogs([]);
+          setNotice('All trashed activity logs permanently purged from database.');
         } else {
-          setSystemLogs((prev) => {
-            const updated = prev.filter((l) => l.id !== deleteLogTarget.id);
-            localStorage.setItem('frametrail_system_logs', JSON.stringify(updated));
-            return updated;
-          });
-          setTrashedSystemLogs((prev) => {
-            const updated = prev.filter((l) => l.id !== deleteLogTarget.id);
-            localStorage.setItem('frametrail_trashed_system_logs', JSON.stringify(updated));
-            return updated;
-          });
-          setNotice(`Activity log "${deleteLogTarget.event}" permanently deleted.`);
+          setSystemLogs([]);
+          setNotice('All active system logs archived/cleared successfully.');
         }
-        setPurgeLogsModalOpen(false);
-        setDeleteLogTarget(null);
-        setPurgeLogsPassword('');
-        setTimeout(() => setNotice(null), 4000);
+      } else {
+        const targetId = deleteLogTarget.id;
+        await api.delete(`/admin/logs/${targetId}`);
+        setSystemLogs((prev) => prev.filter((l) => (l.id || l._id) !== targetId));
+        setTrashedSystemLogs((prev) => prev.filter((l) => (l.id || l._id) !== targetId));
+        setNotice(`Activity log "${deleteLogTarget.event}" permanently deleted.`);
       }
+
+      setPurgeLogsModalOpen(false);
+      setDeleteLogTarget(null);
+      setPurgeLogsPassword('');
+      setTimeout(() => setNotice(null), 4000);
+      loadAdminData(true);
     } catch (err: any) {
       setPurgeLogsError(err.response?.data?.message || 'Incorrect Admin Password! Access Denied.');
     } finally {

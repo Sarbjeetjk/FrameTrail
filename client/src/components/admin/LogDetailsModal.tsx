@@ -67,7 +67,17 @@ export const LogDetailsModal: React.FC<LogDetailsModalProps> = ({
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/80 pb-2 gap-1 min-w-0">
               <span className="text-slate-400 font-medium shrink-0">User / Actor:</span>
-              <span className="font-bold text-white break-all sm:text-right">{selectedLogDetails.user}</span>
+              <div className="flex items-center gap-1.5 sm:justify-end flex-wrap">
+                <span className="font-bold text-white break-all">{selectedLogDetails.user}</span>
+                {selectedLogDetails.userEmail && (
+                  <span className="text-slate-400 font-mono text-[11px]">({selectedLogDetails.userEmail})</span>
+                )}
+                {selectedLogDetails.userRole && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[9px] uppercase font-bold">
+                    {selectedLogDetails.userRole}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
               <span className="text-slate-400 font-medium shrink-0">Device & Browser:</span>

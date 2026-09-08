@@ -151,12 +151,42 @@ export const SystemActivityLogs: React.FC<SystemActivityLogsProps> = ({
               <div className="space-y-1.5 min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
                   <span className="text-indigo-400 font-bold">[{formatLogTime(log.timestamp, log.time, log.id)}]</span>
-                  <span className="text-cyan-300 font-black tracking-wide uppercase px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/30">
+                  
+                  {/* Contextual Event Badge */}
+                  <span
+                    className={`font-black tracking-wide uppercase px-2 py-0.5 rounded border text-[10px] ${
+                      log.event === 'ACCOUNT_CREATED'
+                        ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                        : log.event.includes('UPLOAD')
+                        ? 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40'
+                        : log.event.includes('DELETE') || log.event.includes('TRASH') || log.event.includes('PURGE')
+                        ? 'bg-rose-950/80 text-rose-300 border-rose-500/40'
+                        : log.event.includes('LOGIN')
+                        ? 'bg-violet-950/80 text-violet-300 border-violet-500/40'
+                        : 'bg-slate-900 text-slate-300 border-slate-700'
+                    }`}
+                  >
                     {log.event}
                   </span>
-                  <span className="text-slate-400 font-sans text-[11px] flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                    <User className="w-3 h-3 text-indigo-400" />
-                    <span>{log.user}</span>
+
+                  {/* Rich User Info: Name, Email & Role Tag */}
+                  <span className="text-slate-300 font-sans text-[11px] flex items-center gap-1.5 bg-slate-900/90 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                    <User className="w-3 h-3 text-indigo-400 shrink-0" />
+                    <span className="font-bold text-white">{log.user}</span>
+                    {log.userEmail && (
+                      <span className="text-slate-400 font-mono text-[10px]">({log.userEmail})</span>
+                    )}
+                    {log.userRole && (
+                      <span
+                        className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded border ${
+                          log.userRole === 'admin'
+                            ? 'bg-rose-950/60 text-rose-300 border-rose-500/30'
+                            : 'bg-indigo-950/60 text-indigo-300 border-indigo-500/30'
+                        }`}
+                      >
+                        {log.userRole}
+                      </span>
+                    )}
                   </span>
                 </div>
 
