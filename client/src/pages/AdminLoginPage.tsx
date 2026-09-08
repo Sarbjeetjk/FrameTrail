@@ -26,6 +26,13 @@ export const AdminLoginPage: React.FC = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotNotice, setForgotNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // 🔒 Account Security Lockout State (5 Wrong Attempts Lock)
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockEmail, setUnlockEmail] = useState('');
+  const [unlockOtp, setUnlockOtp] = useState('');
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [unlockNotice, setUnlockNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const executeLogin = async (force: boolean = false) => {
     if (!email.trim() || !password.trim()) {
       setError('Please enter both admin email and password.');
@@ -71,7 +78,26 @@ export const AdminLoginPage: React.FC = () => {
       navigate('/admin');
     } catch (err: any) {
       setActiveSessionWarning(false);
-      setError(err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.');
+      const isLocked = err.response?.data?.data?.isLocked || err.response?.status === 423;
+      const errorMessage = err.response?.data?.message || err.message || 'Server Error: Internal server issue occurred. Please try again.';
+
+      setError(errorMessage);
+
+      if (isLocked) {
+        setUnlockEmail(email.trim().toLowerCase());
+        setUnlockOtp('');
+        setUnlockNotice({
+          type: 'error',
+          message: '5 Wrong Password Attempts Detected! A 6-digit OTP code has been dispatched to your Gmail inbox. Enter OTP below to unlock.',
+        });
+        setShowUnlockModal(true);
+        // Automatically dispatch OTP to admin email for unlocking
+        api.post('/auth/send-otp', {
+          email: email.trim().toLowerCase(),
+          name: 'Admin Security System',
+          purpose: 'account_unlock',
+        }).catch(() => {});
+      }
     } finally {
       setLoading(false);
     }
@@ -149,6 +175,75 @@ export const AdminLoginPage: React.FC = () => {
       });
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  // Handler: Verify 6-digit OTP to Unlock Account & Auto-login to Admin Dashboard
+  const handleVerifyUnlockOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unlockOtp.trim() || unlockOtp.trim().length < 4) {
+      setUnlockNotice({ type: 'error', message: 'Please enter a valid 6-digit OTP code.' });
+      return;
+    }
+
+    setUnlockNotice(null);
+    setUnlockLoading(true);
+
+    try {
+      const res = await api.post('/auth/unlock-account', {
+        email: unlockEmail.trim(),
+        otp: unlockOtp.trim(),
+      });
+
+      if (res.data && res.data.success && res.data.data) {
+        const { user, token } = res.data.data;
+        localStorage.setItem('frametrail_token', token);
+        localStorage.setItem('frametrail_user', JSON.stringify(user));
+
+        // 🔒 Generate active admin session ID for this browser tab
+        const newSessionId = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        sessionStorage.setItem('frametrail_tab_admin_session_id', newSessionId);
+        localStorage.setItem('frametrail_active_admin_session_id', newSessionId);
+
+        setUnlockNotice({
+          type: 'success',
+          message: '🔓 Account Security Lock Removed! Directing to Admin Dashboard...',
+        });
+
+        setTimeout(() => {
+          setShowUnlockModal(false);
+          window.location.href = '/admin';
+        }, 1200);
+      }
+    } catch (err: any) {
+      setUnlockNotice({
+        type: 'error',
+        message: err.response?.data?.message || 'Invalid or expired OTP code! Please check your Gmail inbox.',
+      });
+    } finally {
+      setUnlockLoading(false);
+    }
+  };
+
+  const handleResendUnlockOtp = async () => {
+    setUnlockLoading(true);
+    try {
+      await api.post('/auth/send-otp', {
+        email: unlockEmail.trim(),
+        name: 'Admin Security System',
+        purpose: 'account_unlock',
+      });
+      setUnlockNotice({
+        type: 'success',
+        message: `Fresh 6-digit OTP code sent to ${unlockEmail}! Please check your Gmail inbox.`,
+      });
+    } catch (err: any) {
+      setUnlockNotice({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to resend OTP.',
+      });
+    } finally {
+      setUnlockLoading(false);
     }
   };
 
@@ -436,6 +531,97 @@ export const AdminLoginPage: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🔒 ACCOUNT SECURITY LOCKOUT OTP VERIFICATION MODAL */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-slate-900 border-2 border-rose-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl text-white relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-rose-400">
+                <Lock className="w-5 h-5 text-rose-500 animate-pulse" />
+                <h3 className="text-base font-black text-white">Unlock Admin Account</h3>
+              </div>
+              <button
+                onClick={() => setShowUnlockModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-rose-950/60 border border-rose-500/30 rounded-2xl text-xs text-rose-200 font-semibold space-y-1">
+              <div className="flex items-center gap-2 font-extrabold text-rose-300">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                <span>Security Protocol Initiated (5 Failed Logins)</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed pt-1">
+                Your Admin account was automatically locked for security. A <strong>6-digit OTP code</strong> has been sent to <strong>{unlockEmail}</strong> to verify your identity.
+              </p>
+            </div>
+
+            {unlockNotice && (
+              <div
+                className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md ${
+                  unlockNotice.type === 'success'
+                    ? 'bg-emerald-950/80 border border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-950/80 border border-rose-500/40 text-rose-200'
+                }`}
+              >
+                {unlockNotice.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                )}
+                <span>{unlockNotice.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyUnlockOtp} className="space-y-4 text-xs font-medium">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-bold">Enter 6-Digit Verification Code</label>
+                  <button
+                    type="button"
+                    onClick={handleResendUnlockOtp}
+                    disabled={unlockLoading}
+                    className="text-[11px] font-bold text-cyan-300 hover:text-white flex items-center gap-1 underline"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${unlockLoading ? 'animate-spin' : ''}`} />
+                    <span>Resend OTP</span>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  placeholder="e.g. 849201"
+                  value={unlockOtp}
+                  onChange={(e) => setUnlockOtp(e.target.value)}
+                  className="w-full bg-slate-950 border border-rose-500/30 rounded-xl p-3.5 text-center font-mono text-xl tracking-[0.4em] text-cyan-300 focus:outline-none focus:border-rose-500 font-black shadow-inner"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockModal(false)}
+                  className="py-2.5 px-4 bg-slate-800 text-slate-300 font-bold rounded-xl border border-slate-700 hover:bg-slate-700 text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={unlockLoading || !unlockOtp}
+                  className="flex-1 py-3 bg-gradient-to-r from-rose-600 via-rose-500 to-indigo-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{unlockLoading ? 'Unlocking Dashboard...' : 'Verify OTP & Unlock Admin Dashboard'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

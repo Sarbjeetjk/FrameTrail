@@ -127,23 +127,15 @@ const movieTagList = [
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { uploadFile, uploading, progress, error: r2Error, resetUploadState } = usePresignedUpload();
   const { fetchMedia } = useMedia();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAuthenticated } = useAuth();
 
   // Mode Selection: 'file' (Local Batch File Upload) vs 'url' (Direct Link / YouTube Link)
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   const [type, setType] = useState<MediaType>('photo');
 
-  // Dynamic Categories list fetched from MongoDB Atlas
+  // Dynamic Categories list fetched from MongoDB Atlas (Admin sees all, User sees only own previous categories)
   const [dbCategories, setDbCategories] = useState<string[]>([]);
-  const [categoryOptions, setCategoryOptions] = useState<string[]>(photoCategoryList);
-
-  // Compute active category & tag options (combines all real DB categories + default list)
-  const activeCategoryList = Array.from(
-    new Set([
-      ...dbCategories,
-      ...(type === 'photo' ? photoCategoryList : type === 'video' ? videoCategoryList : movieCategoryList),
-    ])
-  );
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(isAdmin ? photoCategoryList : []);
   const activeTagList =
     type === 'photo' ? photoTagList : type === 'video' ? videoTagList : movieTagList;
 
@@ -223,26 +215,38 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
     return t === 'photo' ? photoTagList : t === 'video' ? videoTagList : movieTagList;
   }
 
-  // Fetch all existing categories from MongoDB Atlas on mount / modal open
+  // Fetch all existing categories:
+  // - Admin: fetches all categories across entire database + defaults
+  // - Regular User: fetches ONLY categories uploaded by this user (empty for new users)
   React.useEffect(() => {
     const fetchDynamicCategories = async () => {
       try {
-        const res = await MediaService.getCategories();
+        if (!isAdmin && !isAuthenticated) {
+          setDbCategories([]);
+          setCategoryOptions([]);
+          return;
+        }
+
+        const res = await MediaService.getCategories(isAdmin ? undefined : { mySpace: true });
         if (res.success && res.data) {
           const fetchedNames = res.data.map((c: any) => c._id || c.name || c).filter(Boolean);
           setDbCategories(fetchedNames);
-          const currentDefaults = getCategoriesForType(type);
+          const currentDefaults = isAdmin ? getCategoriesForType(type) : [];
           const combined = Array.from(new Set([...fetchedNames, ...currentDefaults]));
           setCategoryOptions(combined);
+        } else {
+          setDbCategories([]);
+          setCategoryOptions(isAdmin ? getCategoriesForType(type) : []);
         }
       } catch (err) {
         console.error('[Fetch Dynamic Categories Error]', err);
+        setDbCategories([]);
       }
     };
     if (isOpen) {
       fetchDynamicCategories();
     }
-  }, [isOpen, type]);
+  }, [isOpen, type, isAdmin, isAuthenticated]);
 
   if (!isOpen) return null;
 
@@ -651,14 +655,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
         url: '',
         title: '',
         description: '',
-        category: defaultCats[0],
+        category: isAdmin ? defaultCats[0] : '',
         customCategory: '',
         tags: defaultTags[0],
         customTags: '',
         thumbnailFile: null,
       },
     ]);
-    setCategorySelect(defaultCats[0]);
+    setCategorySelect(isAdmin ? defaultCats[0] : '');
     setCustomCategory('');
     setTagSelect(defaultTags[0]);
     setCustomTag('');
@@ -944,35 +948,64 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                                   onChange={(e) => updateBatchItemField(item.id, 'category', e.target.value)}
                                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                                 >
-                                  <option value="">-- Select City / Category (Or Type Below) --</option>
-                                  {dbCategories.length > 0 && (
-                                    <optgroup label="📁 Previously Uploaded DB Categories">
-                                      {dbCategories.map((cat) => (
-                                        <option key={`db_${cat}`} value={cat}>
-                                          {cat}
-                                        </option>
-                                      ))}
-                                    </optgroup>
+                                  {isAdmin ? (
+                                    <>
+                                      <option value="">-- Select City / Category (Or Type Below) --</option>
+                                      {dbCategories.length > 0 && (
+                                        <optgroup label="📁 Previously Uploaded DB Categories">
+                                          {dbCategories.map((cat) => (
+                                            <option key={`db_${cat}`} value={cat}>
+                                              {cat}
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      )}
+                                      <optgroup label="⭐ Preset Categories">
+                                        {getCategoriesForType(type).map((cat) => (
+                                          <option key={`def_${cat}`} value={cat}>
+                                            {cat}
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                      <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {dbCategories.length > 0 ? (
+                                        <>
+                                          <option value="">-- Select Your Previous City (Or Type Below) --</option>
+                                          <optgroup label="📍 Your Previously Used Cities">
+                                            {dbCategories.map((cat) => (
+                                              <option key={`user_db_${cat}`} value={cat}>
+                                                {cat}
+                                              </option>
+                                            ))}
+                                          </optgroup>
+                                          <option value="Other">✏️ Type New City Below...</option>
+                                        </>
+                                      ) : (
+                                        <option value="">-- No Previous Cities (Type City Below) --</option>
+                                      )}
+                                    </>
                                   )}
-                                  <optgroup label="⭐ Preset Categories">
-                                    {getCategoriesForType(type).map((cat) => (
-                                      <option key={`def_${cat}`} value={cat}>
-                                        {cat}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                  <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
                                 </select>
 
-                                {(item.category === 'Other' || (!item.category && !isAdmin)) && (
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
-                                    value={item.customCategory || ''}
-                                    onChange={(e) => updateBatchItemField(item.id, 'customCategory', e.target.value)}
-                                    className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
-                                  />
+                                {(item.category === 'Other' || !item.category || (!isAdmin && dbCategories.length === 0)) && (
+                                  <div className="mt-1.5">
+                                    <input
+                                      type="text"
+                                      required={!item.category}
+                                      placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
+                                      value={item.customCategory || ''}
+                                      onChange={(e) => updateBatchItemField(item.id, 'customCategory', e.target.value)}
+                                      className="w-full bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in placeholder:text-slate-500"
+                                    />
+                                    {!isAdmin && dbCategories.length === 0 && (
+                                      <span className="text-[10px] text-amber-400/90 mt-1 block">
+                                        💡 Type your city name above. It will be saved for your future uploads.
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
 
@@ -1221,7 +1254,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                           </div>
                         </div>
 
-                        {/* Specific Category / Location & Tag Dropdowns per Link */}
+{/* Specific Category / Location & Tag Dropdowns per Link */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                           {/* Category / Location Dropdown */}
                           <div>
@@ -1233,35 +1266,64 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onSuc
                               onChange={(e) => updateLinkRow(linkItem.id, 'category', e.target.value)}
                               className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
                             >
-                              <option value="">-- Select City / Category (Or Type Below) --</option>
-                              {dbCategories.length > 0 && (
-                                <optgroup label="📁 Previously Uploaded DB Categories">
-                                  {dbCategories.map((cat) => (
-                                    <option key={`db_link_${cat}`} value={cat}>
-                                      {cat}
-                                    </option>
-                                  ))}
-                                </optgroup>
+                              {isAdmin ? (
+                                <>
+                                  <option value="">-- Select City / Category (Or Type Below) --</option>
+                                  {dbCategories.length > 0 && (
+                                    <optgroup label="📁 Previously Uploaded DB Categories">
+                                      {dbCategories.map((cat) => (
+                                        <option key={`db_link_${cat}`} value={cat}>
+                                          {cat}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  <optgroup label="⭐ Preset Categories">
+                                    {getCategoriesForType(type).map((cat) => (
+                                      <option key={`def_link_${cat}`} value={cat}>
+                                        {cat}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
+                                </>
+                              ) : (
+                                <>
+                                  {dbCategories.length > 0 ? (
+                                    <>
+                                      <option value="">-- Select Your Previous City (Or Type Below) --</option>
+                                      <optgroup label="📍 Your Previously Used Cities">
+                                        {dbCategories.map((cat) => (
+                                          <option key={`user_db_link_${cat}`} value={cat}>
+                                            {cat}
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                      <option value="Other">✏️ Type New City Below...</option>
+                                    </>
+                                  ) : (
+                                    <option value="">-- No Previous Cities (Type City Below) --</option>
+                                  )}
+                                </>
                               )}
-                              <optgroup label="⭐ Preset Categories">
-                                {getCategoriesForType(type).map((cat) => (
-                                  <option key={`def_link_${cat}`} value={cat}>
-                                    {cat}
-                                  </option>
-                                ))}
-                              </optgroup>
-                              <option value="Other">✏️ Other (Enter Custom City / Name)...</option>
                             </select>
 
-                            {(linkItem.category === 'Other' || (!linkItem.category && !isAdmin)) && (
-                              <input
-                                type="text"
-                                required
-                                placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
-                                value={linkItem.customCategory || ''}
-                                onChange={(e) => updateLinkRow(linkItem.id, 'customCategory', e.target.value)}
-                                className="w-full mt-1.5 bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in"
-                              />
+                            {(linkItem.category === 'Other' || !linkItem.category || (!isAdmin && dbCategories.length === 0)) && (
+                              <div className="mt-1.5">
+                                <input
+                                  type="text"
+                                  required={!linkItem.category}
+                                  placeholder={type === 'photo' ? "Enter your city / location name (e.g. Solan, Shimla, Delhi)..." : "Enter category name..."}
+                                  value={linkItem.customCategory || ''}
+                                  onChange={(e) => updateLinkRow(linkItem.id, 'customCategory', e.target.value)}
+                                  className="w-full bg-slate-900 border border-indigo-500/60 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-indigo-500 animate-in fade-in placeholder:text-slate-500"
+                                />
+                                {!isAdmin && dbCategories.length === 0 && (
+                                  <span className="text-[10px] text-amber-400/90 mt-1 block">
+                                    💡 Type your city name above. It will be saved for your future uploads.
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
 

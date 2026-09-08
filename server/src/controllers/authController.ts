@@ -202,6 +202,16 @@ export class AuthController {
         return sendError(res, 401, 'Invalid credentials');
       }
 
+      // Check if account is locked due to 5 consecutive wrong password attempts
+      if (user.isLocked) {
+        return sendError(
+          res,
+          423,
+          '🔒 Account Locked: Account locked due to 5 consecutive failed password attempts. OTP verification is required to unlock your Admin Dashboard.',
+          { isLocked: true, email: user.email }
+        );
+      }
+
       if (user.status === 'blocked') {
         return sendError(
           res,
@@ -220,8 +230,67 @@ export class AuthController {
 
       const isMatch = await user.comparePassword(password);
       if (!isMatch) {
-        return sendError(res, 401, 'Invalid credentials');
+        // Increment login attempts for Security Lockout
+        const currentAttempts = (user.loginAttempts || 0) + 1;
+        user.loginAttempts = currentAttempts;
+
+        if (currentAttempts >= 5) {
+          user.isLocked = true;
+          user.lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          await user.save();
+
+          // 🔑 Generate cryptographically strong OTP code for account unlock
+          const otp = crypto.randomInt(100000, 1000000).toString();
+          await Otp.deleteMany({ email: user.email, purpose: 'account_unlock' });
+          await Otp.create({
+            email: user.email,
+            otp,
+            purpose: 'account_unlock',
+            attempts: 0,
+          });
+
+          // 📧 Dispatch OTP directly via SendGrid to Admin Email Inbox
+          sendOtpEmail({
+            to: user.email,
+            name: user.name,
+            otp,
+            purpose: 'account_unlock',
+          }).catch((mailErr) => {
+            console.error('[Account Lock OTP Mail Error]', mailErr);
+          });
+
+          recordActivityLog(req, {
+            event: 'ACCOUNT_LOCKED',
+            detail: `Security Alert: Account "${user.name}" (${user.email}) locked after 5 consecutive failed password attempts. Verification OTP sent to ${user.email}.`,
+            level: 'warn',
+            user: user.name,
+            userId: user._id,
+            userEmail: user.email,
+            userRole: user.role,
+          });
+
+          return sendError(
+            res,
+            423,
+            '🔒 Security Alert: Account locked due to 5 consecutive wrong password attempts. OTP verification code has been dispatched to your Gmail inbox.',
+            { isLocked: true, email: user.email }
+          );
+        }
+
+        await user.save();
+        const remaining = 5 - currentAttempts;
+        return sendError(
+          res,
+          401,
+          `Invalid credentials. (${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining before account locking)`
+        );
       }
+
+      // Successful login -> Reset failed login attempts counter & clear lock
+      user.loginAttempts = 0;
+      user.isLocked = false;
+      user.lockUntil = undefined;
+      await user.save();
 
       const token = generateToken({
         id: user._id.toString(),
@@ -254,6 +323,83 @@ export class AuthController {
       });
     } catch (error: any) {
       return sendError(res, 500, error.message || 'Error logging in');
+    }
+  }
+
+  static async unlockAccount(req: Request, res: Response) {
+    try {
+      const { email, otp } = req.body;
+      if (!email || !otp) {
+        return sendError(res, 400, 'Email and 6-digit OTP code are required to unlock account');
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        return sendError(res, 404, 'Account not found');
+      }
+
+      const otpRecord = await Otp.findOne({ email: normalizedEmail, purpose: 'account_unlock' });
+      if (!otpRecord) {
+        return sendError(res, 400, 'Unlock verification code expired or not found. Please request a new OTP.');
+      }
+
+      if (otpRecord.otp !== otp.toString().trim()) {
+        otpRecord.attempts = (otpRecord.attempts || 0) + 1;
+        if (otpRecord.attempts >= 5) {
+          await Otp.deleteMany({ email: normalizedEmail, purpose: 'account_unlock' });
+          return sendError(
+            res,
+            429,
+            '⛔ Too many failed OTP attempts. Please request a new verification code.'
+          );
+        }
+        await otpRecord.save();
+        const remaining = 5 - otpRecord.attempts;
+        return sendError(
+          res,
+          400,
+          `Invalid verification code. (${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining)`
+        );
+      }
+
+      // Valid OTP code -> Consume OTP and unlock account
+      await Otp.deleteMany({ email: normalizedEmail, purpose: 'account_unlock' });
+      user.isLocked = false;
+      user.loginAttempts = 0;
+      user.lockUntil = undefined;
+      await user.save();
+
+      const token = generateToken({
+        id: user._id.toString(),
+        role: user.role,
+        email: user.email,
+      });
+
+      recordActivityLog(req, {
+        event: 'ACCOUNT_UNLOCKED',
+        detail: `Account "${user.name}" (${user.email}) unlocked successfully via 6-digit OTP verification code.`,
+        level: 'success',
+        user: user.name,
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+      });
+
+      return sendResponse(res, 200, true, 'Account unlocked successfully via OTP! Logging in...', {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          uploadLimits: user.uploadLimits,
+          status: user.status,
+        },
+        token,
+      });
+    } catch (error: any) {
+      return sendError(res, 500, error.message || 'Failed to unlock account');
     }
   }
 

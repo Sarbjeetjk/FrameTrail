@@ -6,7 +6,7 @@ const router = Router();
 
 // Public / Protected Media Endpoints
 router.get('/', optionalAuth, MediaController.getMedia);
-router.get('/categories', MediaController.getCategories);
+router.get('/categories', optionalAuth, MediaController.getCategories);
 router.get('/my-space', protect, MediaController.getMySpace);
 router.post('/user-upload', protect, MediaController.createUserUpload);
 router.delete('/my-space/:id', protect, MediaController.deleteMyMedia);

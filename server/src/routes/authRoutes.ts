@@ -10,7 +10,7 @@ const router = Router();
 const sendOtpSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email address'),
-    purpose: z.enum(['register', 'forgot_password', 'profile_update']).optional(),
+    purpose: z.enum(['register', 'forgot_password', 'profile_update', 'account_unlock']).optional(),
     name: z.string().optional(),
   }),
 });
@@ -19,7 +19,7 @@ const verifyOtpSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email address'),
     otp: z.string().min(4, 'OTP code is required'),
-    purpose: z.enum(['register', 'forgot_password', 'profile_update']).optional(),
+    purpose: z.enum(['register', 'forgot_password', 'profile_update', 'account_unlock']).optional(),
   }),
 });
 
@@ -57,6 +57,7 @@ router.get('/me', protect, AuthController.getMe);
 router.put('/profile', protect, AuthController.updateProfile);
 router.post('/verify-password', protect, AuthController.verifyPassword);
 router.post('/reset-password', authLimiter, validateRequest(resetPasswordSchema), AuthController.resetPassword);
+router.post('/unlock-account', authLimiter, AuthController.unlockAccount);
 router.get('/users', protect, adminOnly, AuthController.getAllUsers);
 router.get('/geoip', AuthController.getGeoIp);
 

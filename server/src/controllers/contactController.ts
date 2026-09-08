@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ContactMessage } from '../models/ContactMessage';
 import { sendResponse, sendError } from '../utils/response';
+import { sendContactInquiryNotification } from '../utils/sendgrid';
 
 export class ContactController {
   /**
@@ -24,6 +25,18 @@ export class ContactController {
       });
 
       console.log(`[Contact DB] New contact message stored in MongoDB Atlas from ${email}`);
+
+      // 📧 Send Instant Email Alert to Admin Email ID (sarbjeetkumar76350@gmail.com)
+      sendContactInquiryNotification({
+        name,
+        email,
+        category: category || 'General Inquiry',
+        subject,
+        message,
+      }).catch((mailErr) => {
+        console.error('[Contact Mail Background Error]', mailErr);
+      });
+
       return sendResponse(res, 201, true, 'Contact message submitted successfully to MongoDB Atlas', newMessage);
     } catch (error: any) {
       console.error('[Contact Create Error]', error);

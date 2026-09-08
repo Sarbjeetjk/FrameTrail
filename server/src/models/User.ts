@@ -13,6 +13,9 @@ export interface IUser extends Document {
   };
   status: 'active' | 'blocked' | 'deactivated';
   blockReason?: string;
+  loginAttempts?: number;
+  isLocked?: boolean;
+  lockUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -66,6 +69,17 @@ const UserSchema: Schema<IUser> = new Schema(
     blockReason: {
       type: String,
       default: '',
+    },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
+    lockUntil: {
+      type: Date,
     },
   },
   {

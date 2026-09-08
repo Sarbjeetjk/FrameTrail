@@ -232,6 +232,17 @@ export class MediaController {
         matchStage.category = { $nin: hiddenCatNames };
       }
 
+      // If requested for user's own space, filter categories by this user only
+      const authUser = (req as AuthenticatedRequest).user;
+      if (req.query.mySpace === 'true') {
+        if (!authUser) {
+          return sendResponse(res, 200, true, 'Categories fetched', []);
+        }
+        const userId = authUser.id;
+        const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
+        matchStage.uploadedBy = userObjId ? { $in: [userId, userObjId] } : userId;
+      }
+
       const categories = await Media.aggregate([
         { $match: matchStage },
         {

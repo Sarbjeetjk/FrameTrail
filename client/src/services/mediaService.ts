@@ -30,8 +30,9 @@ export class MediaService {
     return response.data;
   }
 
-  static async getCategories(type?: string): Promise<ApiResponse<{ _id: string; count: number }[]>> {
-    const response = await api.get('/media/categories', { params: type ? { type } : undefined });
+  static async getCategories(params?: string | { type?: string; mySpace?: boolean }): Promise<ApiResponse<{ _id: string; count: number }[]>> {
+    const queryParams = typeof params === 'string' ? { type: params } : params;
+    const response = await api.get('/media/categories', { params: queryParams });
     return response.data;
   }
 

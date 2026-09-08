@@ -104,3 +104,4 @@ export const logActivity = async ({
     console.error('[Activity Logger Error]', error);
   }
 };
+

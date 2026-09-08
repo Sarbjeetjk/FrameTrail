@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type OtpPurpose = 'register' | 'forgot_password' | 'profile_update';
+export type OtpPurpose = 'register' | 'forgot_password' | 'profile_update' | 'account_unlock';
 
 export interface IOtp extends Document {
   email: string;
@@ -26,7 +26,7 @@ const OtpSchema: Schema<IOtp> = new Schema(
     },
     purpose: {
       type: String,
-      enum: ['register', 'forgot_password', 'profile_update'],
+      enum: ['register', 'forgot_password', 'profile_update', 'account_unlock'],
       default: 'register',
     },
     attempts: {

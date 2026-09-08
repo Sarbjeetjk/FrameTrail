@@ -1198,7 +1198,10 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Conditional Rendering: Messages / Analytics / Users / Logs / Health / Hidden / Main CRUD */}
         {activeTab === 'messages' ? (
-          <ContactMessagesSection contactMessages={contactMessages} />
+          <ContactMessagesSection
+            contactMessages={contactMessages}
+            onMarkAsRead={handleMarkAsRead}
+          />
         ) : activeTab === 'analytics' ? (
           <AnalyticsSection adminMediaList={adminMediaList} />
         ) : activeTab === 'users' ? (
